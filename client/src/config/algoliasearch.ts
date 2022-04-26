@@ -1,0 +1,8 @@
+const { REACT_APP_ALGOLIA_APP_ID, REACT_APP_ALGOLIA_SEARCH_KEY } = process.env
+
+if (!REACT_APP_ALGOLIA_APP_ID || !REACT_APP_ALGOLIA_SEARCH_KEY) {
+  throw new Error('Invalid Algolia credentials')
+}
+
+export const ALGOLIA_APP_ID = REACT_APP_ALGOLIA_APP_ID
+export const ALGOLIA_SEARCH_KEY = REACT_APP_ALGOLIA_SEARCH_KEY

@@ -1,0 +1,90 @@
+rules_version = "2";
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth.uid != null; 
+    }
+
+    function hasAccess() {
+      return request.auth.token.accessLevel == 1;
+    }
+
+    function ownsResource(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function hasOnlyKeys(fields) {
+      return request.resource.data.keys().hasOnly(fields)
+    }
+    
+    // function doesntModifyFields(fields) {
+    //   return request.resource.data.keys().hasAny(fields) == false;
+    // }
+
+    match /status/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if ownsResource(userId)
+        && hasOnlyKeys(['state'])
+        && request.resource.data.state == 'online';
+    }
+
+    match /usernames/{username} {
+      allow read: if isAuthenticated();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+    }
+
+    match /contacts/{userId} {
+      allow read: if isAuthenticated();
+      // allow write: if hasAccess() && ownsResource(userId);
+      // allow create, update: if hasAccess()
+      //   && ownsResource(userId)
+      //   || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']))
+    }
+
+    match /businesses/{userId} {
+      allow read, delete: if ownsResource(userId);
+      allow create, update: if hasAccess() && ownsResource(userId) &&
+        hasOnlyKeys([
+          'id',
+          'image',
+          'name',
+          'rating',
+          'reviews',
+          'url',
+          'type',
+          'createdAt',
+        ]) &&
+          request.resource.data.id is string &&
+          request.resource.data.image is string &&
+          request.resource.data.name is string &&
+          request.resource.data.rating is int &&
+          request.resource.data.reviews is int &&
+          request.resource.data.url is string &&
+          (request.resource.data.type == 'saved' || request.resource.data.type == 'blocked') &&
+          request.resource.data.createdAt is timestamp;
+    }
+
+    match /user_parties/{userId} {
+      allow read: if isAuthenticated();
+    }
+
+    match /parties/{partyId} {
+      allow read: if isAuthenticated();
+    }
+
+    match /likes/{partyId} {
+      allow read: if hasAccess();
+      allow create, update: if hasAccess() &&
+        request.auth.uid in get(/databases/$(database)/documents/parties/$(partyId)).data.members &&
+        hasOnlyKeys([request.auth.uid]) &&
+        request.resource.data[request.auth.uid] == true
+    }
+
+    match /matches/{partyId} {
+      allow read: if hasAccess();
+    }
+  }
+}

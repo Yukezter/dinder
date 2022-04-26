@@ -1,0 +1,19 @@
+{
+  "name": "users/VvodBvIiI7Ee9ujNKg9yol8f1521/profilePhoto",
+  "bucket": "dinder-33ca6.appspot.com",
+  "contentType": "image/jpeg",
+  "metageneration": 1,
+  "generation": 1648715050199,
+  "storageClass": "STANDARD",
+  "etag": "someETag",
+  "contentDisposition": "inline",
+  "contentEncoding": "identity",
+  "downloadTokens": [
+    "0715d5ca-407e-4846-bc32-ccc95cca6715"
+  ],
+  "timeCreated": "2022-03-31T08:24:10.198Z",
+  "updated": "2022-03-31T08:24:10.213Z",
+  "size": 23505,
+  "md5Hash": "1LjTCPE5KkkJi9W2hQU1Jg==",
+  "crc32c": "1783925549"
+}

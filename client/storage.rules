@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  function userIsAuthenticated() {
+    return request.auth != null;
+  }
+
+  function userOwnsResource(userId) {
+    return request.auth.uid == userId;
+  }
+
+  function isValidImageFile() {
+    return request.resource.size < 5 * 1024 * 1024
+      && request.resource.contentType.matches('image/.*');
+  }
+
+  match /b/{bucket}/o {
+    match /default/{fileName} {
+      allow read: if userIsAuthenticated()
+    }
+
+    match /users/{userId}/profilePhoto {
+      allow read: if userIsAuthenticated();
+      allow create: if userOwnsResource(userId) && isValidImageFile();
+      allow update: if userOwnsResource(userId) && isValidImageFile();
+      allow delete: if userOwnsResource(userId);
+    }
+  }
+}
