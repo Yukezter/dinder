@@ -1,6 +1,5 @@
 /* eslint-disable prefer-promise-reject-errors */
 // import * as functions from 'firebase-functions'
-import { Timestamp } from 'firebase-admin/firestore'
 import { firestore } from './app'
 // import * as Joi from 'joi'
 import Schema, {
@@ -60,12 +59,71 @@ const email: Rule = {
 }
 
 const timestamp: Rule = {
+  type: 'object',
   required: true,
-  validator(_, value) {
-    console.log(value)
-    console.log(value instanceof Timestamp)
+  fields: {
+    seconds: {
+      type: 'number',
+    },
+    nanoseconds: {
+      type: 'number',
+    },
   },
-  message: 'lastActive field required',
+  message: 'timestamp field required',
+}
+
+const location: Rule = {
+  type: 'object',
+  required: true,
+  fields: {
+    place_id: {
+      type: 'string',
+      required: true,
+    },
+    description: {
+      type: 'string',
+      required: true,
+    },
+    latitude: {
+      type: 'number',
+      required: true,
+    },
+    longitude: {
+      type: 'number',
+      required: true,
+    },
+  },
+  message: 'location field required',
+}
+
+const yelpParams: Rule = {
+  type: 'object',
+  required: true,
+  fields: {
+    radius: {
+      type: 'number',
+      required: true,
+      message: 'radius field required',
+    },
+    price: {
+      type: 'number',
+      required: true,
+      message: 'price field required',
+    },
+    categories: {
+      type: 'array',
+      // required: true,
+      // enum: [''],
+      defaultField: {
+        type: 'string',
+      },
+      message: 'categories field required',
+    },
+    open_now: {
+      type: 'boolean',
+    },
+  },
+  message: 'params field required',
 }
 
 export default {
@@ -98,129 +156,35 @@ export default {
       message: 'About me must be 1000 charcters or less',
     },
   }),
-  createParty: new Schema({
+  updateParty: new Schema({
+    id: {
+      type: 'string',
+      required: true,
+      message: 'id required',
+    },
     name,
     admin: name,
     members: {
       type: 'array',
       required: true,
+      min: 0,
       defaultField: {
         type: 'string',
       },
-      message: 'Invalid members',
+      message: 'members field required',
     },
     active: {
       type: 'boolean',
       required: true,
       message: 'active field required',
     },
+    location,
+    params: yelpParams,
     lastActive: timestamp,
-    created: timestamp,
-    coordinates: {
-      type: 'string',
-      required: true,
-      message: 'coordinates field required',
-    },
-    radius: {
-      type: 'number',
-      required: true,
-      message: 'radius field required',
-    },
-    categories: {
-      type: 'array',
-      required: true,
-      // enum: [''],
-      defaultField: {
-        type: 'string',
-      },
-      message: 'categories field required',
-    },
+    createdAt: timestamp,
+  }),
+  yelpParams: new Schema({
+    ...location.fields,
+    ...yelpParams.fields,
   }),
 }
-
-// Reusable keys
-
-// const name = Joi.string().required().messages({
-//   'string.empty': 'A name is required',
-// })
-
-// const username = Joi.string()
-//   .alphanum()
-//   .min(3)
-//   .max(30)
-//   .pattern(/^(?!\.\.?$)(?!.*__.*__)([^/]{1,1500})$/)
-//   .required()
-//   .messages({
-//     'string.empty': 'A username is required',
-//     'string.alphanum': 'Alphanumeric characters only',
-//     'string.min': 'Pick a username between 3-30 characters',
-//     'string.max': 'Pick a username between 3-30 characters',
-//     'string.pattern.base': 'Invalid characters',
-//   })
-
-// const email = Joi.string().email().required().messages({
-//   'string.empty': 'An email is required',
-//   'string.email': 'Invalid email format',
-// })
-
-// // Validators
-
-// const signUp = Joi.object({
-//   password: Joi.string().pattern(/^[a-zA-Z0-9]{6,30}$/).messages({
-//     'string.pattern.base': 'Invalid characters',
-//   }),
-// }).keys({
-//   name,
-//   username,
-//   email,
-// })
-
-// const updateSettings = Joi.object({
-//   about: Joi.string().empty('').default(null).max(500).messages({
-//     'string.max': 'Number of characters cannot exceed 500',
-//   }),
-//   phoneNumber: Joi.string().empty('').default(null),
-// }).keys({
-//   name,
-//   // username,
-//   email,
-// })
-
-// export default {
-//   username,
-//   signUp,
-//   updateSettings,
-// }
-
-// import { firestore } from './app'
-
-// const usernames = firestore.collection('usernames')
-
-// .external(async (value, helpers) => {
-// const username = value
-// const uid = helpers.prefs.context?.uid
-// const usernameRef = usernames.doc(username)
-// const usernameDoc = await usernameRef.get()
-
-// // If not assigned and exists, someone else owns it
-// if (usernameDoc.exists && username.data().uid !== uid) {
-//   throw new Joi.ValidationError(
-//     'string.username',
-//     [
-//       {
-//         message: 'Username is taken',
-//         path: ['username'],
-//         type: 'string.username',
-//         context: {
-//           key: 'username',
-//           label: 'username',
-//           value,
-//         },
-//       },
-//     ],
-//     value
-//   )
-// }
-
-// return value
-// })

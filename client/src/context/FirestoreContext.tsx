@@ -1,11 +1,8 @@
 import React from 'react'
-import { Unsubscribe, Timestamp, FirestoreError } from 'firebase/firestore'
-import { useQuery, useMutation, useQueryClient, MutationKey } from 'react-query'
+import { Timestamp, FieldValue } from 'firebase/firestore'
 
 import { usersService } from '../services'
 import { IAuthContext } from '../context/AuthContext'
-import { useOnCollectionSnapshot, useOnDocumentSnapshot } from '../hooks'
-import { UseOnDocumentSnapshotResult } from '../hooks/useOnDocumentSnapshot'
 
 const sleepThenThrow = (ms: number = 3000) =>
   new Promise((resolve, reject) => {
@@ -34,15 +31,26 @@ export type Contacts = { [userId: string]: boolean }
 export type UserParties = { [partyId: string]: boolean }
 
 export interface Business {
-  id: number
-  image: string
-  name: string
-  rating: number
-  reviews: number
-  location: string
-  url: string
-  type: 'saved' | 'blocked'
+  type: 'save' | 'block'
   createdAt: Timestamp
+  business: {
+    id: string
+    image: string
+    name: string
+    price: string
+    rating: number
+    categories: string
+    reviews: number
+    location: string
+    url: string
+  }
+}
+
+export type Match = {
+  type: 'like' | 'super-like'
+  createdAt: Timestamp
+  last: string
+  business: Business['business']
 }
 
 export type Businesses = {
@@ -56,15 +64,31 @@ export interface Party {
   members: string[]
   active: boolean
   lastActive: Timestamp
-  created: Timestamp
-  settings?: {
+  createdAt: Timestamp
+  location: {
+    place_id: string
+    description: string
     latitude: number
     longitude: number
+  }
+  params: {
     radius: number
     price: number
     categories: string[]
     openNow?: boolean
-    offset?: number
+  }
+}
+
+export interface PopulatedParty extends Omit<Party, 'members'> {
+  members: User[]
+}
+
+export type SwipeAction = 'undo' | 'dislike' | 'super-like' | 'like'
+
+export interface Swipes {
+  [userId: string]: {
+    action: SwipeAction
+    timestamp: Timestamp
   }
 }
 
@@ -109,14 +133,6 @@ export type YelpResponse = {
       longitude: number
     }
   }
-}
-
-export interface Likes {
-  [yelpId: string]: { [userId: string]: true }
-}
-
-export interface PopulatedParty extends Omit<Party, 'members'> {
-  members: User[]
 }
 
 const UserContext = React.createContext<User>({} as User)

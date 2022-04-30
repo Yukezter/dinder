@@ -34,6 +34,20 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
+
+      match /businesses/{yelpId} {
+        allow read, delete: if ownsResource(userId);
+        allow create, update: if hasAccess() && ownsResource(userId) &&
+          request.resource.data.id is string &&
+          request.resource.data.image is string &&
+          request.resource.data.name is string &&
+          request.resource.data.rating is float &&
+          request.resource.data.location is string &&
+          request.resource.data.reviews is int &&
+          request.resource.data.url is string &&
+          (request.resource.data.type == 'save' || request.resource.data.type == 'block') &&
+          request.resource.data.createdAt is timestamp;
+      }
     }
 
     match /contacts/{userId} {
@@ -44,47 +58,34 @@ service cloud.firestore {
       //   || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']))
     }
 
-    match /businesses/{userId} {
-      allow read, delete: if ownsResource(userId);
-      allow create, update: if hasAccess() && ownsResource(userId) &&
-        hasOnlyKeys([
-          'id',
-          'image',
-          'name',
-          'rating',
-          'reviews',
-          'url',
-          'type',
-          'createdAt',
-        ]) &&
-          request.resource.data.id is string &&
-          request.resource.data.image is string &&
-          request.resource.data.name is string &&
-          request.resource.data.rating is int &&
-          request.resource.data.reviews is int &&
-          request.resource.data.url is string &&
-          (request.resource.data.type == 'saved' || request.resource.data.type == 'blocked') &&
-          request.resource.data.createdAt is timestamp;
-    }
-
     match /user_parties/{userId} {
       allow read: if isAuthenticated();
     }
 
     match /parties/{partyId} {
       allow read: if isAuthenticated();
-    }
 
-    match /likes/{partyId} {
-      allow read: if hasAccess();
-      allow create, update: if hasAccess() &&
-        request.auth.uid in get(/databases/$(database)/documents/parties/$(partyId)).data.members &&
-        hasOnlyKeys([request.auth.uid]) &&
-        request.resource.data[request.auth.uid] == true
-    }
+      match /swipes/{yelpId} {
+        allow read: if hasAccess();
+        allow create: if hasAccess() &&
+          request.auth.uid in get(/databases/$(database)/documents/parties/$(partyId)).data.members &&
+          request.resource.data.keys().hasOnly([request.auth.uid]) &&
+          request.resource.data[request.auth.uid].action == 'dislike' ||
+          request.resource.data[request.auth.uid].action == 'super-like' ||
+          request.resource.data[request.auth.uid].action == 'like' &&
+          request.resource.data[request.auth.uid].timestamp is timestamp;
+        allow update: if hasAccess() &&
+          request.auth.uid in get(/databases/$(database)/documents/parties/$(partyId)).data.members &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([request.auth.uid]) &&
+          request.resource.data[request.auth.uid].action == 'dislike' ||
+          request.resource.data[request.auth.uid].action == 'super-like' ||
+          request.resource.data[request.auth.uid].action == 'like' &&
+          request.resource.data[request.auth.uid].timestamp is timestamp;
+      }
 
-    match /matches/{partyId} {
-      allow read: if hasAccess();
+      match /matches/{yelpId} {
+        allow read: if hasAccess();
+      }
     }
   }
 }

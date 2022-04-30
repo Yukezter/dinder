@@ -43,12 +43,13 @@ import SadFaceIcon from '@mui/icons-material/SentimentDissatisfied'
 import MenuDotsIcon from '@mui/icons-material/MoreVert'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
-import { useUser, useContacts, User } from '../../context/FirestoreContext'
+import { useUser, User } from '../../context/FirestoreContext'
 import { useProfile } from '../../context/ProfileViewContext'
 import { authService, usersService } from '../../services'
 import {
   useSearch,
   usePopper,
+  useGetContacts,
   useDeleteContact,
   useBlockContact,
 } from '../../hooks'
@@ -325,54 +326,19 @@ const Contact: React.FC<ContactProps> = props => {
           />
         </ListItemAvatar>
         <ListItemText
-          primary={isLoading ? <Skeleton /> : contact?.name}
-          secondary={isLoading ? <Skeleton /> : contact?.username}
+          primary={isLoading ? <Skeleton width='80%' /> : contact?.name}
+          secondary={isLoading ? <Skeleton width='50%' /> : contact?.username}
         />
       </ListItemButton>
     </ListItem>
   )
 }
 
-const useGetContacts = () => {
-  const contacts = useContacts()
-
-  return useQuery<(User | undefined)[]>(
-    'contacts',
-    async () => {
-      if (!contacts || Object.keys(contacts).length === 0) {
-        return []
-      }
-
-      const snap = await usersService.getUsers(Object.keys(contacts))
-      return snap.docs.map(doc => doc.data())
-    },
-    {
-      placeholderData: Array.from(Array(10)).fill(undefined),
-      keepPreviousData: true,
-      staleTime: 60 * 1000,
-      select(data) {
-        return data.sort((a, b) => {
-          if (!a || !b) {
-            return 0
-          }
-          if (a!.name < b!.name) {
-            return -1
-          }
-          if (a!.name > b!.name) {
-            return 1
-          }
-          return 0
-        })
-      },
-    }
-  )
-}
-
-type ContactsMenuProps = {}
-
-const ContactsMenu: React.FC<ContactsMenuProps> = props => {
-  const { data, isLoading } = useGetContacts()
+const ContactsMenu: React.FC = props => {
   const { autocomplete, autocompleteState } = useSearch()
+  const { data, isPlaceholderData } = useGetContacts({
+    placeholderData: Array.from(Array(5)).fill(undefined),
+  })
 
   return (
     <>
@@ -390,7 +356,7 @@ const ContactsMenu: React.FC<ContactsMenuProps> = props => {
                 <Contact
                   key={contact?.uid || index}
                   contact={contact}
-                  isLoading={isLoading}
+                  isLoading={isPlaceholderData}
                 />
               ))}
             </List>
@@ -605,7 +571,7 @@ const DashboardLayout: React.FC = props => {
             height: `calc(100% - ${dashboardHeaderHeight}px)`,
             // height: '100%',
             pt: `${dashboardHeaderHeight}px`,
-            mb: 5,
+            mb: { xs: 2, lg: 5 },
             display: 'flex',
             flexDirection: 'column',
             flex: 1,

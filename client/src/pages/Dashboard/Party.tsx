@@ -1,4 +1,5 @@
 import React from 'react'
+import { query, orderBy } from 'firebase/firestore'
 import { useParams, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import {
   useQuery,
@@ -11,15 +12,14 @@ import {
   motion,
   useMotionValue,
   useTransform,
-  useAnimation,
   useMotionTemplate,
   MotionProps,
-  PanInfo,
 } from 'framer-motion'
-import Box, { BoxProps } from '@mui/material/Box'
-import Container from '@mui/material/Container'
+import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
+import Skeleton from '@mui/material/Skeleton'
 import Grid from '@mui/material/Grid'
+import Dialog, { DialogProps } from '@mui/material/Dialog'
 import Hidden from '@mui/material/Hidden'
 import Typography from '@mui/material/Typography'
 import Link from '@mui/material/Link'
@@ -45,35 +45,30 @@ import { usersService } from '../../services'
 import {
   useUser,
   useParties,
-  Party,
   PopulatedParty,
   YelpResponse,
   YelpBusiness,
   Business,
+  Swipes,
+  SwipeAction,
+  Match,
 } from '../../context/FirestoreContext'
 import { useProfile } from '../../context/ProfileViewContext'
+import { usePartySettings } from '../../context/PartySettingsContext'
 import { usePopper, useOnDocumentSnapshot } from '../../hooks'
-import { BusinessListItem, PartySettingsDrawer } from '../../components'
+import { BusinessListItem } from '../../components'
 import { IconButton, Avatar, DividerText, Stars } from '../../common/components'
 
-const images = [
-  'https://media.istockphoto.com/photos/table-top-view-of-spicy-food-picture-id1316145932?b=1&k=20&m=1316145932&s=170667a&w=0&h=feyrNSTglzksHoEDSsnrG47UoY_XX4PtayUPpSMunQI=',
-  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8MXx8Zm9vZHxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=600&q=60',
-  'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8NHx8Zm9vZHxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=600&q=60',
-  'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8Nnx8Zm9vZHxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=600&q=60',
-  'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8NXx8Zm9vZHxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=600&q=60',
-  'https://images.unsplash.com/photo-1565958011703-44f9829ba187?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8N3x8Zm9vZHxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=600&q=60',
-  'https://images.unsplash.com/photo-1482049016688-2d3e1b311543?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8MTB8fGZvb2R8ZW58MHx8MHx8&auto=format&fit=crop&w=600&q=60',
-]
-
 const PartyOptionsPopper = ({
-  isAdmin,
-  handleOpen,
+  party,
+  handleUpdatePartySettings,
 }: {
-  isAdmin: boolean
-  handleOpen: () => void
+  party: PopulatedParty
+  handleUpdatePartySettings: (updatedParty: PopulatedParty) => void
 }) => {
   const popper = usePopper()
+  const user = useUser()
+  const { openSettings } = usePartySettings()
   return (
     <>
       <IconButton
@@ -93,12 +88,17 @@ const PartyOptionsPopper = ({
             <MenuItem dense sx={{ display: { lg: 'none' } }}>
               History
             </MenuItem>
-            {isAdmin ? (
+            {user.uid === party?.admin ? (
               <MenuItem
                 dense
                 onClick={() => {
                   popper.handlePopperClose()
-                  handleOpen()
+                  openSettings({
+                    party,
+                    onSuccess(data) {
+                      handleUpdatePartySettings(data)
+                    },
+                  })
                 }}
               >
                 Edit
@@ -109,7 +109,6 @@ const PartyOptionsPopper = ({
                 sx={{ color: t => t.palette.error.main }}
                 onClick={() => {
                   popper.handlePopperClose()
-                  handleOpen()
                 }}
               >
                 Leave
@@ -119,6 +118,59 @@ const PartyOptionsPopper = ({
         </ClickAwayListener>
       </Popper>
     </>
+  )
+}
+
+type MembersProps = {
+  members: PopulatedParty['members']
+}
+
+const Members: React.FC<MembersProps> = props => {
+  const { members } = props
+  const user = useUser()
+  const { viewProfile } = useProfile()
+
+  return (
+    <Stack
+      direction='row'
+      spacing={1}
+      mb={2}
+      sx={{
+        height: 60,
+        overflowY: 'hidden',
+      }}
+    >
+      {members.map(
+        member =>
+          user.uid !== member.uid && (
+            <IconButton
+              key={member.uid}
+              sx={{ p: 0 }}
+              onClick={() => viewProfile(member)}
+            >
+              <Avatar
+                alt={member.name}
+                src={member.photoURL}
+                id={member.uid}
+                sx={theme => ({
+                  '&::after': {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    borderStyle: 'solid',
+                    borderWidth: 2,
+                    borderColor: theme.palette.primary.main,
+                    borderRadius: '50%',
+                    content: '""',
+                  },
+                })}
+              />
+            </IconButton>
+          )
+      )}
+    </Stack>
   )
 }
 
@@ -163,53 +215,192 @@ const SwipeButton: React.FC<SwipeButtonProps> = ({
   )
 }
 
-type MatchByDate = { date: string; matches: (Business | undefined)[] }
+type MatchDialogProps = DialogProps & {
+  match?: Match
+}
+
+// let matchQueue = []
+
+const MatchDialog: React.FC<MatchDialogProps> = props => {
+  const { match, ...dialogProps } = props
+
+  return (
+    <Dialog {...dialogProps}>
+      <Paper sx={{ p: 5 }}>
+        <Typography variant='h6' gutterBottom>
+          {match?.business.name}
+        </Typography>
+        <Box display='flex'>
+          <Box display='flex'>
+            <Chip
+              label={match?.business.price}
+              size='small'
+              color='primary'
+              variant='filled'
+              sx={{ width: 60, mr: 1 }}
+            />
+          </Box>
+          <div>
+            <Stars rating={match?.business.rating} />
+            <Typography variant='caption'>
+              {match?.business.reviews} Reviews
+            </Typography>
+          </div>
+        </Box>
+        <Typography variant='body2'>{match?.business.location}</Typography>
+        <Typography variant='body1' color='primary'>
+          {match?.business.categories}
+        </Typography>
+      </Paper>
+    </Dialog>
+  )
+}
+
+// const useGetMatches = (partyId: string) => {
+//   return useQuery<MatchByDate[]>(
+//     'matches',
+//     async () => {
+//       const data = (await usersService.getMatches(partyId)) || {}
+//       const matchesBydate = Object.keys(data)
+//         .map(k => data[k])
+//         .reduce<{ [dateString: string]: Business[] }>((acc, curr) => {
+//           const dateString = curr.createdAt.toDate().toDateString()
+//           if (!acc[dateString]) {
+//             acc[dateString] = []
+//           }
+
+//           acc[dateString].push(curr)
+//           return acc
+//         }, {})
+
+//       return Object.keys(data)
+//         .map(k => data[k])
+//         .sort((a, b) => {
+//           if (a!.name < b!.name) {
+//             return -1
+//           }
+//           if (a!.name > b!.name) {
+//             return 1
+//           }
+//           return 0
+//         })
+//         .reduce<MatchByDate[]>((acc, curr) => {
+//           const dateString = curr.createdAt.toDate().toDateString()
+//           if (matchesBydate[dateString]) {
+//             acc.push({
+//               date: dateString,
+//               matches: matchesBydate[dateString],
+//             })
+//             delete matchesBydate[dateString]
+//           }
+//           return acc
+//         }, [])
+//     },
+//     {
+//       placeholderData: Array(1).fill({ matches: Array(6).fill(undefined) }),
+//       keepPreviousData: true,
+//     }
+//   )
+// }
+
+const initalMatches = Array(1).fill({ matches: Array(6).fill(undefined) })
+
+type MatchesByDate = { date: string; matches: Match[] }[]
 
 const Matches = ({ partyId }: { partyId: string }) => {
-  const { data, isLoading } = useQuery<MatchByDate[]>(
-    'matches',
-    async () => {
-      const data = (await usersService.getMatches(partyId)) || {}
-      const matchesBydate = Object.keys(data)
-        .map(k => data[k])
-        .reduce<{ [dateString: string]: Business[] }>((acc, curr) => {
-          const dateString = curr.createdAt.toDate().toDateString()
-          if (!acc[dateString]) {
-            acc[dateString] = []
-          }
+  const user = useUser()
+  const [matches, setMatches] = React.useState<MatchesByDate>(initalMatches)
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [isOpen, setIsOpen] = React.useState(false)
+  const [matchQueue, setMatchQueue] = React.useState<Match[]>([])
 
-          acc[dateString].push(curr)
-          return acc
-        }, {})
+  const handleFadeEnd = React.useCallback(() => {
+    setMatchQueue(prevMatchQueue => {
+      const newMatchQueue = [...prevMatchQueue]
+      newMatchQueue.shift()
+      return newMatchQueue
+    })
+  }, [])
 
-      return Object.keys(data)
-        .map(k => data[k])
-        .sort((a, b) => {
-          if (a!.name < b!.name) {
-            return -1
-          }
-          if (a!.name > b!.name) {
-            return 1
-          }
-          return 0
-        })
-        .reduce<MatchByDate[]>((acc, curr) => {
-          const dateString = curr.createdAt.toDate().toDateString()
-          if (matchesBydate[dateString]) {
-            acc.push({
-              date: dateString,
-              matches: matchesBydate[dateString],
-            })
-            delete matchesBydate[dateString]
-          }
-          return acc
-        }, [])
-    },
-    {
-      placeholderData: Array(1).fill({ matches: Array(6).fill(undefined) }),
-      keepPreviousData: true,
+  const initialCall = React.useRef(true)
+
+  React.useEffect(() => {
+    if (!partyId) return
+
+    setIsLoading(true)
+
+    const matchesRef = usersService.collections.matches(partyId).ref
+    const matchesQuery = query(matchesRef, orderBy('createdAt', 'desc'))
+    const unsubscribe = usersService.onCollectionSnapshot(
+      matchesQuery,
+      snapshot => {
+        const sortedMatches = snapshot.docs.reduce<MatchesByDate>(
+          (dates, doc) => {
+            if (doc.exists()) {
+              const data = doc.data()
+              const dateString = data.createdAt.toDate().toDateString()
+              const dateIndex = dates.findIndex(
+                match => match.date === dateString
+              )
+              if (dateIndex === -1) {
+                dates.push({
+                  date: dateString,
+                  matches: [data],
+                })
+              } else {
+                dates[dateIndex].matches.push(data)
+              }
+            }
+
+            return dates
+          },
+          []
+        )
+
+        setMatches(sortedMatches)
+
+        if (!initialCall.current) {
+          snapshot.docChanges().forEach(change => {
+            if (change.doc.exists() && change.type === 'added') {
+              const data = change.doc.data()
+              if (data.type === 'like' && data.last === user.uid) {
+                setMatchQueue(prevMatchQueue => [...prevMatchQueue, data])
+              }
+
+              if (data.type === 'super-like') {
+                setMatchQueue(prevMatchQueue => [...prevMatchQueue, data])
+              }
+            }
+          })
+        }
+
+        initialCall.current = false
+        setIsLoading(false)
+      },
+      error => {
+        console.log(error)
+      }
+    )
+
+    return unsubscribe
+  }, [partyId, user.uid])
+
+  console.log(matchQueue)
+
+  React.useEffect(() => {
+    if (!isOpen && matchQueue.length > 0) {
+      setIsOpen(true)
     }
-  )
+  }, [isOpen, matchQueue])
+
+  const handleClose = React.useCallback(() => {
+    setIsOpen(false)
+    setMatchQueue(prevMatchQueue => {
+      const newMatchQueue = [...prevMatchQueue]
+      newMatchQueue.shift()
+      return newMatchQueue
+    })
+  }, [])
 
   return (
     <Paper
@@ -220,18 +411,23 @@ const Matches = ({ partyId }: { partyId: string }) => {
         flexDirection: 'column',
       }}
     >
+      <MatchDialog
+        open={isOpen && !!matchQueue[0]}
+        match={matchQueue[0]}
+        onClose={handleClose}
+      />
       <Typography variant='h6' mb={2}>
         Matches
       </Typography>
-      <Box sx={{ ...(isLoading && { overflowY: 'auto' }) }}>
-        {data!.map(({ date, matches }, index) => (
+      <Box sx={{ ...(!isLoading && { overflowY: 'auto' }) }}>
+        {matches.map(({ date, matches }, index) => (
           <Box key={index}>
             <DividerText text={date} />
             <List>
               {matches.map((match, index) => (
                 <BusinessListItem
-                  key={match?.id || index}
-                  business={match}
+                  key={match?.business.id || index}
+                  business={match?.business}
                   secondaryAction={
                     <SwipeButton
                       Icon={FavoriteIcon}
@@ -264,24 +460,6 @@ const Motion = motion(
         />
       )
     }
-  ),
-  { forwardMotionProps: true }
-)
-
-const Frame = motion(
-  React.forwardRef<HTMLDivElement, React.PropsWithChildren<MotionProps>>(
-    (props, ref) => (
-      <Box
-        ref={ref}
-        height='100%'
-        maxHeight={600}
-        position='relative'
-        display='flex'
-        justifyContent='center'
-        alignItems='center'
-        children={props.children}
-      />
-    )
   ),
   { forwardMotionProps: true }
 )
@@ -377,32 +555,135 @@ const Card: React.FC<CardProps> = ({
   </Motion>
 )
 
-const useGetBusinesses = (
-  params: Partial<Party['settings']>,
+const useGetYelpBusinesses = (
+  params: PopulatedParty['params'] & PopulatedParty['location'],
   options: UseInfiniteQueryOptions<YelpResponse>
 ) => {
   return useInfiniteQuery<YelpResponse>(
     ['cards'],
     async ({ pageParam = 0 }) => {
-      return usersService.getYelpBusinesses({
+      const data = await usersService.getYelpBusinesses({
         ...params,
         offset: pageParam,
       })
+
+      data.businesses.forEach(business => {
+        const image = new Image()
+        image.src = business.image_url
+      })
+
+      return data
     },
     {
-      cacheTime: 24 * 60 * 60 * 1000,
+      // cacheTime: 24 * 60 * 60 * 1000,
       getNextPageParam: (lastPage, pages) => lastPage.total > pages.length * 20,
       ...options,
     }
   )
 }
 
-type InfiniteCardsProps = {
-  options: Partial<Party['settings']>
+type ActionButtonsProps = {
+  userId: string
+  business?: YelpBusiness
+  animateCardSwipe: (action: SwipeAction) => void
+  isDisabled: boolean
 }
 
-const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
+const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
+  const { userId, business, animateCardSwipe, isDisabled } = props
+
+  const businessMutation = useMutation<
+    void,
+    unknown,
+    { type: 'save' | 'block'; business: YelpBusiness }
+  >(data =>
+    usersService.addBusiness(userId, {
+      type: data.type,
+      business: {
+        id: data.business.id,
+        image: data.business.image_url,
+        name: data.business.name,
+        price: data.business.price,
+        rating: data.business.rating,
+        categories: data.business.categories
+          .map(({ title }) => title)
+          .join(', '),
+        reviews: data.business.review_count,
+        location: `${data.business.location.city}, ${data.business.location.country}`,
+        url: data.business.url,
+      },
+    })
+  )
+
+  const saveOrBlock = (type: 'save' | 'block') => {
+    if (business) {
+      businessMutation.mutate({
+        type,
+        business,
+      })
+    }
+  }
+
+  return (
+    <Stack
+      height={100}
+      direction='row'
+      spacing={2}
+      justifyContent='center'
+      alignItems='center'
+      position='absolute'
+      left={0}
+      right={0}
+      bottom={-134}
+    >
+      {/* <SwipeButton
+        Icon={UndoIcon}
+        width={35}
+        onClick={() => swipe('undo')}
+        disabled={isDisabled}
+      /> */}
+      <SwipeButton
+        Icon={BlockIcon}
+        width={52}
+        onClick={() => saveOrBlock('block')}
+        disabled={isDisabled}
+      />
+      <SwipeButton
+        Icon={DislikeIcon}
+        width={52}
+        onClick={() => animateCardSwipe('dislike')}
+        disabled={isDisabled}
+      />
+      <SwipeButton
+        Icon={SuperlikeIcon}
+        width={65}
+        onClick={() => animateCardSwipe('super-like')}
+        disabled={isDisabled}
+      />
+      <SwipeButton
+        Icon={LikeIcon}
+        width={52}
+        onClick={() => animateCardSwipe('like')}
+        disabled={isDisabled}
+      />
+      <SwipeButton
+        Icon={FavoriteIcon}
+        width={52}
+        onClick={() => saveOrBlock('save')}
+        disabled={isDisabled}
+        sx={{ '& svg': { color: 'white' } }}
+      />
+    </Stack>
+  )
+})
+
+type InfiniteCardsProps = {
+  party: PopulatedParty
+}
+
+const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   const queryClient = useQueryClient()
+  const user = useUser()
 
   const [allCards, setAllCards] = React.useState<YelpBusiness[]>(() => {
     const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
@@ -422,31 +703,60 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
     return data
   })
 
-  const businesses = useGetBusinesses(options, {
-    onSuccess(businesses) {
-      const pages = businesses.pages
-      if (pages && pages.length > 0) {
-        const lastPage = pages[pages.length - 1]
-        setAllCards(prev => [...prev, ...lastPage.businesses])
+  const businesses = useGetYelpBusinesses(
+    {
+      ...party.location,
+      ...party.params,
+    },
+    {
+      onSuccess(businesses) {
+        const pages = businesses.pages
+        if (pages && pages.length > 0) {
+          const lastPage = pages[pages.length - 1]
+          const newCards = lastPage.businesses
+
+          if (pages.length === 1 && cards.length === 0) {
+            setCards(newCards.splice(0, 3))
+          }
+
+          setAllCards(prev => [...prev, ...newCards])
+        }
+      },
+    }
+  )
+
+  const swipeMutation = useMutation<
+    void,
+    unknown,
+    { business: YelpBusiness; action: SwipeAction }
+  >(async data =>
+    usersService.swipe(party.id, data.business.id, user.uid, data.action)
+  )
+
+  const currentBusiness = React.useMemo<YelpBusiness | undefined>(
+    () => cards[cards.length - 1],
+    [cards]
+  )
+
+  const swipe = React.useCallback(
+    (action: SwipeAction) => {
+      if (currentBusiness) {
+        swipeMutation.mutate({
+          action,
+          business: currentBusiness,
+        })
       }
     },
-  })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentBusiness]
+  )
+
+  const isDisabled = React.useMemo(
+    () => !currentBusiness?.id || swipeMutation.isLoading,
+    [currentBusiness?.id, swipeMutation.isLoading]
+  )
 
   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
-
-  React.useEffect(() => {
-    const max = 3
-    if (allCards.length > 0 && cards.length < max) {
-      const newCards = allCards.slice(0, max)
-      newCards.forEach(business => {
-        const image = new Image()
-        image.src = business.image_url
-      })
-
-      setCards(prev => [...newCards, ...prev])
-      setAllCards(prev => prev.slice(max))
-    }
-  }, [allCards, cards])
 
   React.useEffect(() => {
     const pageNum = data ? data.pages.length : 0
@@ -455,7 +765,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
         pageParam: pageNum * 20,
       })
     }
-  }, [allCards, hasNextPage, isFetchingNextPage])
+  }, [allCards, data, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const [dragStart, setDragStart] = React.useState<{
     axis: 'x' | 'y' | null
@@ -491,37 +801,53 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
 
   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
 
-  const onDirectionLock = (axis: 'x' | 'y' | null) =>
-    setDragStart({ ...dragStart, axis })
+  const onDirectionLock = React.useCallback(
+    (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
+    [dragStart, setDragStart]
+  )
 
-  const animateCardSwipe = (animation: { x: number; y: number }) => {
-    setDragStart({ ...dragStart, animation })
+  const animateCardSwipe = React.useCallback(
+    (action: SwipeAction) => {
+      swipe(action)
 
-    setTimeout(() => {
-      setDragStart({ axis: null, animation: { x: 0, y: 0 } })
+      if (action === 'like') {
+        setDragStart({ ...dragStart, animation: { x: 800, y: 0 } })
+      } else if (action === 'dislike') {
+        setDragStart({ ...dragStart, animation: { x: -800, y: 0 } })
+      } else if (action === 'super-like') {
+        setDragStart({ ...dragStart, animation: { x: 0, y: -800 } })
+      }
 
-      x.set(0)
-      y.set(0)
+      setTimeout(() => {
+        setDragStart({ axis: null, animation: { x: 0, y: 0 } })
 
-      setCards([...cards.slice(0, cards.length - 1)])
-    }, 200)
-  }
+        x.set(0)
+        y.set(0)
 
-  const onDragEnd = (info: any) => {
-    if (dragStart.axis === 'x') {
-      if (info.offset.x >= 300) animateCardSwipe({ x: 800, y: 0 })
-      else if (info.offset.x <= -300) animateCardSwipe({ x: -800, y: 0 })
-    } else {
-      if (info.offset.y >= 300) animateCardSwipe({ x: 0, y: 800 })
-      else if (info.offset.y <= -300) animateCardSwipe({ x: 0, y: -800 })
-    }
-  }
+        setCards([...allCards.slice(0, 1), ...cards.slice(0, cards.length - 1)])
+        setAllCards(allCards.slice(1))
+      }, 200)
+    },
+    [swipe, dragStart, x, y, allCards, cards]
+  )
+
+  const onDragEnd = React.useCallback(
+    (info: any) => {
+      if (dragStart.axis === 'x') {
+        if (info.offset.x >= 300) animateCardSwipe('like')
+        else if (info.offset.x <= -300) animateCardSwipe('dislike')
+      } else {
+        if (info.offset.y <= -300) animateCardSwipe('super-like')
+      }
+    },
+    [dragStart, animateCardSwipe]
+  )
 
   const renderCards = () => {
     return cards.map((business, index) =>
       index === cards.length - 1 ? (
         <Card
-          key={business.id || index}
+          key={business.id ? `${business.id}-${index}` : index}
           business={business}
           style={{ x, y, zIndex: index }}
           onDirectionLock={axis => onDirectionLock(axis)}
@@ -530,7 +856,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
         />
       ) : (
         <Card
-          key={business.id || index}
+          key={business.id ? `${business.id}-${index}` : index}
           business={business}
           style={{
             scale,
@@ -543,18 +869,29 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
   }
 
   return (
-    <Box
-      height='100%'
-      maxHeight={600}
-      position='relative'
-      display='flex'
-      justifyContent='center'
-      alignItems='center'
-      overflow='hidden'
-      p={3}
-    >
-      {renderCards()}
-    </Box>
+    <div style={{ height: '100%', position: 'relative' }}>
+      <Box
+        height='100%'
+        maxHeight={600}
+        position='relative'
+        display='flex'
+        justifyContent='center'
+        alignItems='center'
+        overflow='hidden'
+      >
+        {businesses.isLoading ? (
+          <Skeleton variant='rectangular' width='100%' height='100%' />
+        ) : (
+          renderCards()
+        )}
+      </Box>
+      <ActionButtons
+        userId={user.uid}
+        business={currentBusiness}
+        animateCardSwipe={animateCardSwipe}
+        isDisabled={isDisabled}
+      />
+    </div>
   )
 }
 
@@ -562,12 +899,9 @@ const PartyView = () => {
   const { partyId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const user = useUser()
   const parties = useParties()
-  const { viewProfile } = useProfile()
 
   const [party, setParty] = React.useState<PopulatedParty | undefined>(() => {
-    if (!partyId || !parties[partyId]) return undefined
     const locationState = (location.state as { party?: PopulatedParty }) || {}
     return locationState.party ? locationState.party : undefined
   })
@@ -581,10 +915,10 @@ const PartyView = () => {
       state: { party },
       replace: true,
     })
-  }, [party])
+  }, [party, navigate])
 
   React.useEffect(() => {
-    if (!party) {
+    if (!party?.id) {
       return
     }
 
@@ -604,37 +938,18 @@ const PartyView = () => {
         console.log(error)
       }
     )
-  }, [])
+  }, [party?.id])
 
-  const onUpdatePartySettings = React.useCallback(
+  const handleUpdatePartySettings = React.useCallback(
     (updatedParty: PopulatedParty) => {
       setParty(updatedParty)
     },
     []
   )
 
-  const [open, setOpen] = React.useState(false)
-
-  const handleOpen = () => {
-    setOpen(true)
-  }
-
-  const handleClose = () => {
-    setOpen(false)
-  }
-
-  if (!party) {
+  if (!partyId || !party || !parties[partyId]) {
     return <Navigate to='/dashboard' replace />
   }
-
-  // useOnDocumentSnapshot({
-  //   ref: party ? usersService.docs.likes(partyId).ref : undefined,
-  //   next: async snapshot => {
-  //     const data = snapshot.data()
-  //     if (data) {
-  //     }
-  //   },
-  // })
 
   return (
     <Grid container columnSpacing={4} height='100%'>
@@ -653,82 +968,19 @@ const PartyView = () => {
                 {party!.name}
               </Typography>
               <PartyOptionsPopper
-                isAdmin={user.uid === party?.admin}
-                handleOpen={handleOpen}
-              />
-              <PartySettingsDrawer
-                open={open}
-                handleClose={handleClose}
-                options={party!}
-                onSuccess={onUpdatePartySettings}
+                party={party!}
+                handleUpdatePartySettings={handleUpdatePartySettings}
               />
             </Box>
-            <Stack
-              direction='row'
-              spacing={1}
-              mb={2}
-              sx={{
-                height: 60,
-                overflowY: 'hidden',
-              }}
-            >
-              {party!.members.map(
-                member =>
-                  user.uid !== member.uid && (
-                    <IconButton
-                      key={member.uid}
-                      sx={{ p: 0 }}
-                      onClick={() => viewProfile(member)}
-                    >
-                      <Avatar
-                        alt={member.name}
-                        src={member.photoURL}
-                        id={member.uid}
-                        sx={theme => ({
-                          '&::after': {
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            borderStyle: 'solid',
-                            borderWidth: 2,
-                            borderColor: theme.palette.primary.main,
-                            borderRadius: '50%',
-                            content: '""',
-                          },
-                        })}
-                      />
-                    </IconButton>
-                  )
-              )}
-            </Stack>
-            <InfiniteCards options={party!.settings} />
+            <Members members={party.members} />
+            <InfiniteCards party={party!} />
           </Paper>
           <Box
             height={100}
             display='flex'
             justifyContent='center'
             alignItems='center'
-          >
-            <Stack
-              height='100%'
-              direction='row'
-              spacing={2}
-              alignItems='center'
-            >
-              <SwipeButton Icon={UndoIcon} width={35} />
-              <SwipeButton Icon={BlockIcon} width={52} />
-              <SwipeButton Icon={DislikeIcon} width={52} />
-              <SwipeButton Icon={SuperlikeIcon} width={65} />
-              <SwipeButton Icon={LikeIcon} width={52} />
-              <SwipeButton
-                Icon={FavoriteIcon}
-                width={52}
-                sx={{ '& svg': { color: 'white' } }}
-              />
-            </Stack>
-          </Box>
+          ></Box>
         </Box>
       </Grid>
       <Hidden lgDown>
@@ -741,3 +993,509 @@ const PartyView = () => {
 }
 
 export default PartyView
+
+// React.useEffect(() => {
+//   const swipesRef = usersService.collections.swipes(party.id).ref
+//   const unsubscribe = usersService.onCollectionSnapshot(
+//     swipesRef,
+//     snapshot => {
+//       console.log('snapshot', snapshot)
+//       setSwipesMap(prevSwipesMap => {
+//         const oldSwipesMap = { ...prevSwipesMap }
+//         const newSwipesMap = snapshot.docs.reduce<{
+//           [yelpId: string]: Swipes
+//         }>((docs, doc) => {
+//           const data = doc.data()
+//           if (!data) {
+//             delete oldSwipesMap[doc.id]
+//             return docs
+//           }
+
+//           docs[doc.id] = data
+//           return docs
+//         }, {})
+
+//         console.log('Swipes Map', newSwipesMap)
+
+//         const swipes = swipesMap[business.id]
+//       console.log(`Swipes for "${business.name} - ${business.id}"`, swipes)
+
+//       if (swipes) {
+//         if (action === 'like') {
+//           const isLikeMatch = party.members.every(member => {
+//             return (
+//               member.uid === user.uid || swipes[member.uid]?.action === 'like'
+//             )
+//           })
+
+//           if (isLikeMatch) {
+//             console.log('Like match!')
+//             const lastUserToMatch = Object.keys(swipes).reduce((a, b) =>
+//               swipes[a].timestamp.nanoseconds > swipes[b].timestamp.nanoseconds
+//                 ? a
+//                 : b
+//             )
+
+//             setMatchQueue(prevMatchQueue => [
+//               ...prevMatchQueue,
+//               {
+//                 type: 'like',
+//                 business,
+//               },
+//             ])
+
+//             if (user.uid === lastUserToMatch) {
+//               console.log('You were the last user to match!')
+//               setMatchQueue(prevMatchQueue => [
+//                 ...prevMatchQueue,
+//                 {
+//                   type: 'like',
+//                   business,
+//                 },
+//               ])
+//             }
+//           }
+//         }
+
+//         if (action === 'super-like') {
+//           const isSuperLikeMatch = party.members.every(member => {
+//             return (
+//               member.uid === user.uid ||
+//               swipes[member.uid]?.action === 'super-like'
+//             )
+//           })
+
+//           if (isSuperLikeMatch) {
+//             console.log('Super-like match!')
+//             setMatchQueue(prevMatchQueue => [
+//               ...prevMatchQueue,
+//               {
+//                 type: 'like',
+//                 business,
+//               },
+//             ])
+//           }
+//         }
+//       }
+
+//         return {
+//           ...oldSwipesMap,
+//           ...newSwipesMap,
+//         }
+//       })
+//     },
+//     error => {
+//       console.log(error)
+//     }
+//   )
+
+//   return unsubscribe
+// }, [party.id, user.uid])
+
+// const max = 2
+
+// type CardsState = {
+//   all: YelpBusiness[]
+//   current: YelpBusiness[]
+// }
+
+// type CardsProps = {
+//   cards: YelpBusiness[]
+//   onDirectionLock: (axis: 'x' | 'y' | null) => void
+//   onDragEnd: (info: any) => void
+//   x: MotionValue<number>
+//   y: MotionValue<number>
+//   dragStart: {
+//     axis: 'x' | 'y' | null
+//     animation: {
+//       x: number
+//       y: number
+//     }
+//   }
+//   scale: MotionValue<number>
+//   boxShadow: MotionValue<string>
+// }
+
+// const Cards = React.memo<CardsProps>(props => {
+//   const {
+//     cards,
+//     x,
+//     y,
+//     onDirectionLock,
+//     onDragEnd,
+//     dragStart,
+//     scale,
+//     boxShadow,
+//   } = props
+//   return (
+//     <Box
+//       height='100%'
+//       maxHeight={600}
+//       position='relative'
+//       display='flex'
+//       justifyContent='center'
+//       alignItems='center'
+//       overflow='hidden'
+//       p={3}
+//     >
+//       {cards.map((business, index) =>
+//         index === cards.length - 1 ? (
+//           <Card
+//             key={business.id || index}
+//             business={business}
+//             style={{ x, y, zIndex: index }}
+//             onDirectionLock={axis => onDirectionLock(axis)}
+//             onDragEnd={(e, info) => onDragEnd(info)}
+//             animate={dragStart.animation}
+//           />
+//         ) : (
+//           <Card
+//             key={business.id || index}
+//             business={business}
+//             style={{
+//               scale,
+//               boxShadow,
+//               zIndex: index,
+//             }}
+//           />
+//         )
+//       )}
+//     </Box>
+//   )
+// })
+
+// type CardsState = {
+//   all: YelpBusiness[]
+//   current: YelpBusiness[]
+// }
+
+// type InfiniteCardsProps = {
+//   options: Partial<Party['settings']>
+// }
+
+// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
+//   const queryClient = useQueryClient()
+
+//   const [cardsState, setCardsState] = React.useState<CardsState>(() => {
+//     const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
+//     const state: CardsState = {
+//       all: [],
+//       current: [],
+//     }
+
+//     if (!data) {
+//       return state
+//     }
+
+//     state.all = data.pages
+//       .flat()
+//       .map(({ businesses }) => businesses)
+//       .flat()
+
+//     state.current = state.all.splice(0, 3)
+
+//     return state
+//   })
+
+//   const businesses = useGetBusinesses(options, {
+//     onSuccess(businesses) {
+//       const pages = businesses.pages
+//       if (pages && pages.length > 0) {
+//         const lastPage = pages[pages.length - 1]
+//         setCardsState(prev => ({
+//           ...prev,
+//           all: [...prev.all, ...lastPage.businesses],
+//         }))
+//       }
+//     },
+//   })
+
+//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
+
+//   React.useEffect(() => {
+//     const { all, current } = cardsState
+//     const max = 3
+
+//     if (all.length > 0 && current.length < max) {
+//       setCardsState(prev => {
+//         return {
+//           all: prev.all.slice(max),
+//           current: [...prev.all.slice(0, max), ...prev.current],
+//         }
+//       })
+//     }
+//   }, [cardsState])
+
+//   React.useEffect(() => {
+//     const pageNum = data ? data.pages.length : 0
+//     if (cardsState.all.length < 20 && hasNextPage && !isFetchingNextPage) {
+//       fetchNextPage({
+//         pageParam: pageNum * 20,
+//       })
+//     }
+//   }, [cardsState.all, data, hasNextPage, isFetchingNextPage, fetchNextPage])
+
+//   const [dragStart, setDragStart] = React.useState<{
+//     axis: 'x' | 'y' | null
+//     animation: {
+//       x: number
+//       y: number
+//     }
+//   }>({
+//     axis: null,
+//     animation: { x: 0, y: 0 },
+//   })
+
+//   const x = useMotionValue(0)
+//   const y = useMotionValue(0)
+
+//   const scale = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [1, 0.5, 1]
+//   )
+
+//   const shadowBlur = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 25, 0]
+//   )
+
+//   const shadowOpacity = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 0.2, 0]
+//   )
+
+//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
+
+//   const onDirectionLock = React.useCallback(
+//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
+//     [dragStart, setDragStart]
+//   )
+
+//   const animateCardSwipe = React.useCallback(
+//     (animation: { x: number; y: number }) => {
+//       setDragStart({ ...dragStart, animation })
+
+//       setTimeout(() => {
+//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
+
+//         x.set(0)
+//         y.set(0)
+
+//         setCardsState(prev => ({
+//           ...prev,
+//           current: [...prev.current.slice(0, prev.current.length - 1)],
+//         }))
+//       }, 200)
+//     },
+//     [dragStart, x, y]
+//   )
+
+//   const onDragEnd = React.useCallback(
+//     (info: any) => {
+//       if (dragStart.axis === 'x') {
+//         if (info.offset.x >= 300) animateCardSwipe({ x: 800, y: 0 })
+//         else if (info.offset.x <= -300) animateCardSwipe({ x: -800, y: 0 })
+//       } else {
+//         if (info.offset.y >= 300) animateCardSwipe({ x: 0, y: 800 })
+//         else if (info.offset.y <= -300) animateCardSwipe({ x: 0, y: -800 })
+//       }
+//     },
+//     [dragStart, animateCardSwipe]
+//   )
+
+//   return (
+//     <Cards
+//       cards={cardsState.current}
+//       x={x}
+//       y={y}
+//       dragStart={dragStart}
+//       onDirectionLock={onDirectionLock}
+//       onDragEnd={onDragEnd}
+//       scale={scale}
+//       boxShadow={boxShadow}
+//     />
+//   )
+// }
+
+// const Cards = React.memo<{
+//   cards: YelpBusiness[]
+//   setCardsState: React.Dispatch<React.SetStateAction<CardsState>>
+// }>(({ cards, setCardsState }) => {
+//   const [dragStart, setDragStart] = React.useState<{
+//     axis: 'x' | 'y' | null
+//     animation: {
+//       x: number
+//       y: number
+//     }
+//   }>({
+//     axis: null,
+//     animation: { x: 0, y: 0 },
+//   })
+
+//   const x = useMotionValue(0)
+//   const y = useMotionValue(0)
+
+//   const scale = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [1, 0.5, 1]
+//   )
+
+//   const shadowBlur = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 25, 0]
+//   )
+
+//   const shadowOpacity = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 0.2, 0]
+//   )
+
+//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
+
+//   const onDirectionLock = React.useCallback(
+//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
+//     [dragStart, setDragStart]
+//   )
+
+//   const animateCardSwipe = React.useCallback(
+//     (animation: { x: number; y: number }) => {
+//       setDragStart({ ...dragStart, animation })
+
+//       setTimeout(() => {
+//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
+
+//         x.set(0)
+//         y.set(0)
+
+//         setCardsState(prev => ({
+//           ...prev,
+//           current: [...prev.current.slice(0, prev.current.length - 1)],
+//         }))
+//       }, 200)
+//     },
+//     [dragStart, x, y, setCardsState]
+//   )
+
+//   const onDragEnd = React.useCallback(
+//     (info: any) => {
+//       if (dragStart.axis === 'x') {
+//         if (info.offset.x >= 300) animateCardSwipe({ x: 800, y: 0 })
+//         else if (info.offset.x <= -300) animateCardSwipe({ x: -800, y: 0 })
+//       } else {
+//         if (info.offset.y >= 300) animateCardSwipe({ x: 0, y: 800 })
+//         else if (info.offset.y <= -300) animateCardSwipe({ x: 0, y: -800 })
+//       }
+//     },
+//     [dragStart, animateCardSwipe]
+//   )
+
+//   const renderCards = () => {
+//     return cards.map((business, index) =>
+//       index === cards.length - 1 ? (
+//         <Card
+//           key={business.id || index}
+//           business={business}
+//           style={{ x, y, zIndex: index }}
+//           onDirectionLock={axis => onDirectionLock(axis)}
+//           onDragEnd={(e, info) => onDragEnd(info)}
+//           animate={dragStart.animation}
+//         />
+//       ) : (
+//         <Card
+//           key={business.id || index}
+//           business={business}
+//           style={{
+//             scale,
+//             boxShadow,
+//             zIndex: index,
+//           }}
+//         />
+//       )
+//     )
+//   }
+
+//   return (
+//     <Box
+//       height='100%'
+//       maxHeight={600}
+//       position='relative'
+//       display='flex'
+//       justifyContent='center'
+//       alignItems='center'
+//       overflow='hidden'
+//       p={3}
+//     >
+//       {renderCards()}
+//     </Box>
+//   )
+// })
+
+// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
+//   const queryClient = useQueryClient()
+
+//   const [cardsState, setCardsState] = React.useState<CardsState>(() => {
+//     const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
+//     const state: CardsState = {
+//       all: [],
+//       current: [],
+//     }
+
+//     if (!data) {
+//       return state
+//     }
+
+//     state.all = data.pages
+//       .flat()
+//       .map(({ businesses }) => businesses)
+//       .flat()
+
+//     state.current = state.all.splice(0, max)
+
+//     return state
+//   })
+
+//   const businesses = useGetBusinesses(options, {
+//     onSuccess(businesses) {
+//       const pages = businesses.pages
+//       if (pages && pages.length > 0) {
+//         const lastPage = pages[pages.length - 1]
+//         setCardsState(prev => ({
+//           ...prev,
+//           all: [...prev.all, ...lastPage.businesses],
+//         }))
+//       }
+//     },
+//   })
+
+//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
+
+//   React.useEffect(() => {
+//     const { all, current } = cardsState
+
+//     if (all.length > 0 && current.length < max) {
+//       setCardsState(prev => {
+//         return {
+//           all: prev.all.slice(max),
+//           current: [...prev.all.slice(0, max), ...prev.current],
+//         }
+//       })
+//     }
+//   }, [cardsState])
+
+//   React.useEffect(() => {
+//     const pageNum = data ? data.pages.length : 0
+//     if (cardsState.all.length < 20 && hasNextPage && !isFetchingNextPage) {
+//       fetchNextPage({
+//         pageParam: pageNum * 20,
+//       })
+//     }
+//   }, [cardsState.all, data, hasNextPage, isFetchingNextPage, fetchNextPage])
+
+//   return <Cards cards={cardsState.current} setCardsState={setCardsState} />
+// }

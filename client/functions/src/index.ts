@@ -44,42 +44,61 @@ interface Party {
   admin: string
   members: string[]
   active: boolean
-  lastActive: Timestamp
-  created: Timestamp
-  settings: {
+  location: {
+    place_id: string
+    description: string
     latitude: number
     longitude: number
+  }
+  params: {
     radius: number
     price: number
     categories: string[]
-    offset: number
     open_now?: boolean
   }
-}
-
-// Business (saved or blocked)
-interface Business {
-  yelpId: number
-  image: string
-  name: string
-  rating: number
-  reviews: number
-  location: string
-  url: string
-  type: 'saved' | 'blocked'
+  lastActive: Timestamp
   createdAt: Timestamp
 }
 
-// This keeps track of the likes for a business
-// If the doc contains all party member user ids, it's a match
-interface Likes {
-  [yelpId: string]: { [userId: string]: true }
+type Members = { [userId: string]: true }
+
+// Business (saved or blocked)
+interface Business {
+  type: 'save' | 'block'
+  createdAt: Timestamp
+  business: {
+    id: string
+    image: string
+    name: string
+    price: string
+    rating: number
+    categories: string
+    reviews: number
+    location: string
+    url: string
+  }
 }
 
-// Party session match history
-interface Matches {
-  [yelpId: string]: Business
+// This keeps track of the swipe choices for a business
+// If the doc contains all party member user ids, it's a match
+interface Swipes {
+  [userId: string]: {
+    action: 'dislike' | 'like' | 'super-like'
+    timestamp: Timestamp
+  }
 }
+
+type Match = {
+  type: 'like' | 'super-like'
+  createdAt: Timestamp
+  last: string
+  business: Business['business']
+}
+
+// // Party session match history
+// interface Matches {
+//   [yelpId: string]: Business
+// }
 
 const usernames = firestore
   .collection('usernames')
@@ -98,6 +117,17 @@ const userParties = firestore
 const parties = firestore
   .collection('parties')
   .withConverter(converter<Party>())
+
+const members = firestore
+  .collection('members')
+  .withConverter(converter<Members>())
+
+const matches = (partyId: string) =>
+  firestore
+    .collection(`parties/${partyId}/matches`)
+    .withConverter(converter<Match>())
+
+// const swipes = firestore.collection('swipes').withConverter(converter<Swipes>())
 
 /* ---------- HELPER FUNCTIONS ---------- */
 
@@ -362,6 +392,89 @@ export const onFileDelete = functions.storage
     })
   })
 
+/* ON SWIPE */
+export const onSwipe = functions.firestore
+  .document('parties/{partyId}/swipes/{yelpId}')
+  .onWrite(async (change, context) => {
+    try {
+      await firestore.runTransaction(async tx => {
+        const { partyId, yelpId } = context.params
+        const memberIdsRef = members.doc(partyId)
+        const memberIdsSnapshot = await tx.get(memberIdsRef)
+        const memberIds = Object.keys(memberIdsSnapshot.data() || {})
+
+        console.log(memberIds)
+
+        const swipes = change.after.data() as Swipes | undefined
+
+        if (swipes) {
+          const superLikeMatch = memberIds.every(
+            id => swipes[id]?.action === 'super-like'
+          )
+
+          const likeMatch = memberIds.every(
+            id =>
+              swipes[id]?.action === 'like' ||
+              swipes[id]?.action === 'super-like'
+          )
+
+          const dislikeMatch = memberIds.every(
+            id => swipes[id]?.action === 'dislike'
+          )
+
+          // const singleSuperLike = memberIds.some(
+          //   id => swipes[id]?.action === 'super-like'
+          // )
+
+          if (superLikeMatch || likeMatch) {
+            const res = await yelpAPI.get(`/businesses/${yelpId}`)
+            const business = res.data
+            const matchedBusiness: Business['business'] = {
+              id: business.id,
+              image: business.image_url,
+              name: business.name,
+              price: business.price,
+              rating: business.rating,
+              reviews: business.review_count,
+              categories: business.categories
+                .map(({ title }: { title: string }) => title)
+                .join(', '),
+              location: `${business.location.country}, ${business.location.city}`,
+              url: business.url,
+            }
+
+            const lastUserToMatch = Object.keys(swipes).reduce((a, b) =>
+              swipes[a].timestamp.toMillis() > swipes[b].timestamp.toMillis()
+                ? a
+                : b
+            )
+
+            const matchesRef = matches(partyId).doc(yelpId)
+            tx.set(
+              matchesRef,
+              {
+                type: superLikeMatch ? 'super-like' : 'like',
+                last: lastUserToMatch,
+                business: matchedBusiness,
+                createdAt: Timestamp.now(),
+              },
+              { merge: true }
+            )
+          }
+
+          if (superLikeMatch || likeMatch || dislikeMatch) {
+            const swipesRef = parties.doc(`${partyId}/swipes/${yelpId}`)
+            tx.delete(swipesRef)
+          }
+        } else {
+          console.log(`Party ${partyId}: swipes for ${yelpId} deleted!`)
+        }
+      })
+    } catch (error) {
+      console.log(error)
+    }
+  })
+
 /* ---------- CLOUD FUNCTIONS ---------- */
 
 /* SIGN UP */
@@ -607,68 +720,90 @@ export const updateParty = functions.https.onCall(
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
 
+    console.log(data)
+
     try {
-      await firestore.runTransaction(async tx => {
-        // Validate all party members
-        const membersQuery = users.where(
-          FieldPath.documentId(),
-          'in',
-          data.members
-        )
-        const membersSnapshot = await tx.get(membersQuery)
-        let memberIds = membersSnapshot.docs.map(doc => {
-          if (!doc.exists) {
-            throw new functions.https.HttpsError(
-              'invalid-argument',
-              'Invalid member id'
-            )
-          }
-
-          return doc.id
-        })
-
-        // Filter out any members that have blocked this user
-        const contactsQuery = contacts.where(
-          FieldPath.documentId(),
-          'in',
-          memberIds
-        )
-        const contactsSnapshot = await tx.get(contactsQuery)
-        memberIds = memberIds.filter(memberId => {
-          const member = contactsSnapshot.docs.find(doc => doc.id === memberId)
-          return member?.data()[uid] !== false
-        })
-
-        // Create the party
-        const partyRef = parties.doc(data.id)
-        tx.set(partyRef, {
-          ...data,
-          created: new Timestamp(
-            data.created.seconds,
-            data.created.nanoseconds
-          ),
-          lastActive: new Timestamp(
-            data.lastActive.seconds,
-            data.lastActive.nanoseconds
-          ),
-        })
-
-        // Finally, add party id to each member's parties object
-        memberIds.forEach(id => {
-          const userPartyRef = userParties.doc(id)
-          tx.set(
-            userPartyRef,
-            {
-              [partyRef.id]: true,
-            },
-            { merge: true }
-          )
-        })
-      })
-    } catch (error) {
-      console.log(error)
-      return error
+      await validators.updateParty.validate(data, { firstFields: true })
+    } catch (e) {
+      const validationError = e as AsyncValidationError
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        validationError.message,
+        validationError.errors
+      )
     }
+
+    await firestore.runTransaction(async tx => {
+      // Validate all party members
+      const membersQuery = users.where(
+        FieldPath.documentId(),
+        'in',
+        data.members
+      )
+
+      const membersSnapshot = await tx.get(membersQuery)
+      let memberIds = membersSnapshot.docs.map(doc => {
+        if (!doc.exists) {
+          throw new functions.https.HttpsError(
+            'invalid-argument',
+            'Invalid member id'
+          )
+        }
+
+        return doc.id
+      })
+
+      // Filter out any members that have blocked this user
+      const contactsQuery = contacts.where(
+        FieldPath.documentId(),
+        'in',
+        memberIds
+      )
+
+      const contactsSnapshot = await tx.get(contactsQuery)
+      memberIds = memberIds.filter(memberId => {
+        const member = contactsSnapshot.docs.find(doc => doc.id === memberId)
+        return member?.data()[uid] !== false
+      })
+
+      // Create the party
+      const partyRef = parties.doc(data.id)
+      tx.set(partyRef, {
+        ...data,
+        createdAt: new Timestamp(
+          data.createdAt.seconds,
+          data.createdAt.nanoseconds
+        ),
+        lastActive: new Timestamp(
+          data.lastActive.seconds,
+          data.lastActive.nanoseconds
+        ),
+      })
+
+      // Create members document for fast members reads
+      const membersRef = members.doc(partyRef.id)
+
+      tx.set(
+        membersRef,
+        memberIds.reduce<Members>((acc, id) => {
+          acc[id] = true
+          return acc
+        }, {})
+      )
+
+      // Finally, add party id to each member's parties object
+      memberIds.forEach(memberId => {
+        // TODO: remove a user's userParty if they aren't in this member id's list
+        const userPartyRef = userParties.doc(memberId)
+        tx.set(
+          userPartyRef,
+          {
+            [partyRef.id]: true,
+          },
+          { merge: true }
+        )
+      })
+    })
   }
 )
 
@@ -710,13 +845,15 @@ export const deleteParty = functions.https.onCall(
   }
 )
 
+const milesToMeters = (miles: number) => miles * 1609
+
 export const getYelpBusinesses = functions.https.onCall(
-  async (data: Party['settings'], context) => {
+  async (data: Party['params'] & Party['location'], context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
 
-    if (!data || !data.latitude || !data.longitude) {
+    if (!data || !data.description || !data.latitude || !data.longitude) {
       throw new functions.https.HttpsError(
         'invalid-argument',
         'No options provided!'
@@ -724,21 +861,18 @@ export const getYelpBusinesses = functions.https.onCall(
     }
 
     try {
-      const defaultParams = {
-        offset: 0,
-        price: 2,
-      }
-
-      const { radius = 10, categories = [] } = data
-      const radiusInMeters = radius * 1609
+      const meters = milesToMeters(data.radius)
+      const radius = meters > 40000 ? 17000 : meters
+      const categories =
+        data.categories.length > 0
+          ? data.categories.join(',')
+          : 'food,restaurants'
 
       const params = {
-        ...defaultParams,
+        offset: 0,
         ...data,
-        categories:
-          categories.length > 0 ? categories.join(',') : 'food,restaurants',
-        // radius: radiusInMeters > 40000 ? 17000 : radiusInMeters,
-        radius: 40000,
+        categories,
+        radius,
         limit: 20,
         // term: 'food',
         // open_now: true,

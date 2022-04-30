@@ -43,6 +43,7 @@ import AddIcon from '@mui/icons-material/Add'
 
 import { usersService } from '../../services'
 import { usePopper } from '../../hooks'
+import { usePartySettings } from '../../context/PartySettingsContext'
 import {
   useUser,
   useParties,
@@ -52,21 +53,18 @@ import {
   Business,
   Businesses,
 } from '../../context/FirestoreContext'
-import { BusinessListItem, PartySettingsDrawer } from '../../components'
+import { BusinessListItem } from '../../components'
 import {
   Button,
   ButtonLink,
   Link,
   Avatar,
   AvatarGroup,
-  Stars,
 } from '../../common/components'
 
-interface TableToolbarProps {
-  handleOpen: () => void
-}
+const TableToolbar: React.FC = () => {
+  const { openSettings } = usePartySettings()
 
-const TableToolbar: React.FC<TableToolbarProps> = ({ handleOpen }) => {
   return (
     <Toolbar
       sx={{
@@ -89,7 +87,7 @@ const TableToolbar: React.FC<TableToolbarProps> = ({ handleOpen }) => {
           background: theme.palette.primary.main,
           color: theme.palette.background.paper,
         })}
-        onClick={handleOpen}
+        onClick={() => openSettings()}
       >
         <AddIcon />
       </IconButton>
@@ -129,6 +127,7 @@ const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
   const popper = usePopper()
   const deleteParty = useDeleteParty(party)
   const isMutating = useIsMutating(['parties', party?.id]) > 0
+  const { openSettings } = usePartySettings()
 
   const handleDeleteParty = () => {
     if (party) {
@@ -143,7 +142,10 @@ const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
         aria-controls={popper.open ? 'party-popper-menu' : undefined}
         aria-haspopup='true'
         aria-expanded={popper.open ? 'true' : undefined}
-        onClick={popper.handlePopperToggle}
+        onClick={e => {
+          e.preventDefault()
+          popper.handlePopperToggle(e)
+        }}
         aria-label='settings'
         disabled={!party || isMutating}
       >
@@ -152,13 +154,25 @@ const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
       <Popper {...popper.getPopperProps()}>
         <ClickAwayListener onClickAway={popper.handlePopperClose}>
           <MenuList component={Paper}>
-            <MenuItem dense disabled={isMutating}>
+            <MenuItem
+              dense
+              onClick={e => {
+                e.preventDefault()
+                if (party) openSettings({ party })
+                popper.handlePopperClose()
+              }}
+              disabled={isMutating}
+            >
               Edit
             </MenuItem>
             <MenuItem
               dense
               sx={{ color: t => t.palette.error.main }}
-              onClick={handleDeleteParty}
+              onClick={e => {
+                e.preventDefault()
+                handleDeleteParty()
+                popper.handlePopperClose()
+              }}
               disabled={isMutating}
             >
               Delete
@@ -172,12 +186,22 @@ const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
 
 type PartyCardProps = {
   party?: PopulatedParty
+  isCreatePartyCard?: boolean
 }
 
 const PartyCard: React.FC<PartyCardProps> = props => {
-  const { party } = props
+  const { isCreatePartyCard, party } = props
+  const { openSettings } = usePartySettings()
 
-  const withLink = (content: JSX.Element) => {
+  const wrap = (content: JSX.Element) => {
+    if (isCreatePartyCard) {
+      return (
+        <CardActionArea onClick={() => openSettings()} sx={{ p: 2 }}>
+          {content}
+        </CardActionArea>
+      )
+    }
+
     if (!party) {
       return content
     }
@@ -202,18 +226,38 @@ const PartyCard: React.FC<PartyCardProps> = props => {
         title={
           <Box display='flex' alignItems='center' mb={1}>
             <Avatar
-              {...(party && { alt: admin?.name, src: admin?.photoURL })}
+              // {...(party && { alt: admin?.name, src: admin?.photoURL })}
+              alt={isCreatePartyCard ? 'Create Party Icon' : admin?.name}
+              {...(!isCreatePartyCard && { src: admin?.photoURL })}
               size='small'
-              sx={{ mr: 1 }}
+              sx={theme => ({
+                mr: 1,
+                ...(isCreatePartyCard && {
+                  background: theme.palette.primary.main,
+                }),
+              })}
+              {...(isCreatePartyCard && { children: <AddIcon /> })}
             />
             <Typography component='span' variant='body2'>
-              {!party ? <Skeleton width={80} /> : admin?.username}
+              {isCreatePartyCard ? (
+                'New'
+              ) : !party ? (
+                <Skeleton width={80} />
+              ) : (
+                admin?.username
+              )}
             </Typography>
           </Box>
         }
         subheader={
           <Typography component='span' variant='body1' fontWeight={600} noWrap>
-            {!party ? <Skeleton width='75%' /> : party.name}
+            {isCreatePartyCard ? (
+              'Create Party'
+            ) : !party ? (
+              <Skeleton width='75%' />
+            ) : (
+              party?.name
+            )}
           </Typography>
         }
       />
@@ -228,7 +272,9 @@ const PartyCard: React.FC<PartyCardProps> = props => {
           textOverflow='ellipsis'
           whiteSpace='nowrap'
         >
-          {!party ? (
+          {isCreatePartyCard ? (
+            'Invite friends and start swiping!'
+          ) : !party ? (
             <Skeleton width='90%' />
           ) : (
             'Ana, Bryan, George, and 21 others'
@@ -238,13 +284,12 @@ const PartyCard: React.FC<PartyCardProps> = props => {
     </>
   )
 
-  return <Card sx={{ p: 2 }}>{withLink(content)}</Card>
+  return <Card sx={{ p: isCreatePartyCard ? 0 : 2 }}>{wrap(content)}</Card>
 }
 
 interface PartiesTableProps {
   data: PopulatedParty[]
   columns: Column<PopulatedParty>[]
-  handleOpen: () => void
 }
 
 const PartiesTable: React.FC<PartiesTableProps> = props => {
@@ -278,7 +323,7 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
         flexDirection: 'column',
       }}
     >
-      <TableToolbar handleOpen={props.handleOpen} />
+      <TableToolbar />
       {data.length > 0 ? (
         <TableContainer>
           <Table aria-labelledby='tableTitle' {...getTableProps()}>
@@ -392,22 +437,22 @@ const BusinessLists = ({ user }: { user: User }) => {
     'businesses',
     async () => {
       const data = await usersService.getBusinesses(user.uid)
-      const list = data ? Object.keys(data).map(k => data[k]) : []
+      // const list = data ? Object.keys(data).map(k => data[k]) : []
       return {
-        saved: list.filter(business => business.type === 'saved'),
-        blocked: list.filter(business => business.type === 'blocked'),
+        saved: data.filter(business => business.type === 'save'),
+        blocked: data.filter(business => business.type === 'block'),
       }
     },
     {
-      initialData: {
-        saved: [],
-        blocked: [],
+      placeholderData: {
+        saved: Array(4).fill({}),
+        blocked: Array(4).fill({}),
       },
     }
   )
 
   const BusinessList = ({ list }: { list: Business[] }) => {
-    if (!businesses.isLoading && list.length === 0) {
+    if (!businesses.isPlaceholderData && list.length === 0) {
       return (
         <Box py={5}>
           <Typography variant='caption' display='block' align='center'>
@@ -419,10 +464,10 @@ const BusinessLists = ({ user }: { user: User }) => {
 
     return (
       <List>
-        {list.map(business => (
+        {list.map((data, index) => (
           <BusinessListItem
-            key={business.id}
-            business={business}
+            key={data?.business?.id || index}
+            business={data?.business}
             secondaryAction={
               <IconButton>
                 <DeleteIcon />
@@ -458,10 +503,10 @@ const BusinessLists = ({ user }: { user: User }) => {
           <Tab label='Blocked' {...a11yProps(1)} />
         </Tabs>
       </Box>
-      <TabPanel value={value} index={0} loading={businesses.isLoading}>
+      <TabPanel value={value} index={0} loading={businesses.isPlaceholderData}>
         <BusinessList list={businesses.data!.saved} />
       </TabPanel>
-      <TabPanel value={value} index={1} loading={businesses.isLoading}>
+      <TabPanel value={value} index={1} loading={businesses.isPlaceholderData}>
         <BusinessList list={businesses.data!.blocked} />
       </TabPanel>
     </Paper>
@@ -487,15 +532,15 @@ const useGetParties = (id: string) => {
     {
       placeholderData: [...Array(3).fill(undefined), ...Array(5).fill({})],
       keepPreviousData: true,
-      cacheTime: 60 * 1000,
+      cacheTime: 10 * 60 * 1000,
     }
   )
 }
 
 const Dashboard = () => {
   const user = useUser()
-  const { data, isLoading, isPlaceholderData } = useGetParties(user.uid)
-  console.log(data, isLoading)
+  const { data, isPlaceholderData } = useGetParties(user.uid)
+
   const parties = React.useMemo(() => {
     let table = [...data!]
 
@@ -512,7 +557,7 @@ const Dashboard = () => {
       cards,
       table,
     }
-  }, [data])
+  }, [data, isPlaceholderData])
 
   const columns = React.useMemo(() => {
     let cols: Column<PopulatedParty>[] = [
@@ -585,21 +630,10 @@ const Dashboard = () => {
     }
 
     return cols
-  }, [isPlaceholderData])
-
-  const [open, setOpen] = React.useState(false)
-
-  const handleOpen = () => {
-    setOpen(true)
-  }
-
-  const handleClose = () => {
-    setOpen(false)
-  }
+  }, [user.uid, isPlaceholderData])
 
   return (
     <>
-      <PartySettingsDrawer open={open} handleClose={handleClose} />
       <Paper sx={{ p: 3, mb: 4 }}>
         <Typography variant='h6' gutterBottom>
           Recent Parties
@@ -610,8 +644,8 @@ const Dashboard = () => {
           rowSpacing={{ xs: 2, sm: 5 }}
         >
           <Grid item xs={6} lg={3}>
-            <Card>
-              <CardActionArea onClick={handleOpen} sx={{ p: 2 }}>
+            {/* <Card>
+              <CardActionArea onClick={() => openSettings()} sx={{ p: 2 }}>
                 <CardHeader
                   disableTypography
                   sx={{ p: 0, mb: 1 }}
@@ -654,7 +688,8 @@ const Dashboard = () => {
                   </Typography>
                 </Stack>
               </CardActionArea>
-            </Card>
+            </Card> */}
+            <PartyCard isCreatePartyCard />
           </Grid>
           {parties.cards.map((party, index) => (
             <Grid key={!party ? index : party.id} item xs={6} lg={3}>
@@ -671,11 +706,7 @@ const Dashboard = () => {
       >
         <Grid container rowSpacing={4} columnSpacing={4}>
           <Grid item xs={12} lg={8} height={{ xs: 'auto', lg: '100%' }}>
-            <PartiesTable
-              data={parties.table}
-              columns={columns}
-              handleOpen={handleOpen}
-            />
+            <PartiesTable data={parties.table} columns={columns} />
           </Grid>
           <Grid item xs={12} lg={4} height={{ xs: 'auto', lg: '100%' }}>
             <BusinessLists user={user} />

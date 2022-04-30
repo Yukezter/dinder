@@ -10,7 +10,6 @@ import AddIcon from '@mui/icons-material/AddCircleOutline'
 import RemoveIcon from '@mui/icons-material/RemoveCircleOutline'
 import BlockIcon from '@mui/icons-material/DoDisturb'
 
-import { usersService } from '../services'
 import { User } from './FirestoreContext'
 import { useAddContact, useDeleteContact, useBlockContact } from '../hooks'
 import { Avatar } from '../common/components'
@@ -32,7 +31,7 @@ const Profile: React.FC<ProfileProps> = ({ userProfile }) => {
         queryClient.getQueryData<(User | undefined)[]>('contacts') || []
       return contacts.some(contact => contact && contact.uid === id)
     },
-    [isMutating]
+    [queryClient]
   )
 
   return (

@@ -1,19 +1,24 @@
-import React from 'react'
 import {
   collection,
   doc,
+  addDoc,
   getDoc,
+  setDoc,
   query,
+  orderBy,
   where,
   onSnapshot,
+  serverTimestamp,
   DocumentSnapshot,
   DocumentData,
   Unsubscribe,
   QueryDocumentSnapshot,
   WithFieldValue,
+  deleteField,
   FirestoreError,
   QuerySnapshot,
   FieldPath,
+  FieldValue,
   documentId,
   DocumentReference,
   CollectionReference,
@@ -32,9 +37,12 @@ import {
   Contacts,
   UserParties,
   YelpResponse,
+  Business,
   Businesses,
+  Match,
   Party,
-  Likes,
+  SwipeAction,
+  Swipes,
 } from '../context/FirestoreContext'
 
 const converter = <T>() => ({
@@ -73,10 +81,22 @@ const constructDoc = <T extends unknown>(
 
 class UsersService {
   collections = {
+    status: constructCollection(getCollectionRef<OnlineStatus>('status')),
     usernames: constructCollection(getCollectionRef<Username>('usernames')),
     users: constructCollection(getCollectionRef<User>('users')),
-    status: constructCollection(getCollectionRef<OnlineStatus>('status')),
+    businesses: (userId: string) =>
+      constructCollection(
+        getCollectionRef<Business>('users', userId, 'businesses')
+      ),
     parties: constructCollection(getCollectionRef<Party>('parties')),
+    swipes: (partyId: string) =>
+      constructCollection(
+        getCollectionRef<Swipes>('parties', partyId, 'swipes')
+      ),
+    matches: (partyId: string) =>
+      constructCollection(
+        getCollectionRef<Match>('parties', partyId, 'matches')
+      ),
   }
 
   docs = {
@@ -87,12 +107,10 @@ class UsersService {
       constructDoc(getDocRef<UserParties>('user_parties', partyId)),
     party: (partyId: string) =>
       constructDoc(getDocRef<Party>('parties', partyId)),
-    businesses: (userId: string) =>
-      constructDoc(getDocRef<Businesses>('businesses', userId)),
-    likes: (partyId: string) =>
-      constructDoc(getDocRef<Likes>('likes', partyId)),
-    matches: (partyId: string) =>
-      constructDoc(getDocRef<Businesses>('matches', partyId)),
+    businesses: (userId: string, yelpId: string) =>
+      constructDoc(getDocRef<Business>('users', userId, 'businesses', yelpId)),
+    swipes: (partyId: string, yelpId: string) =>
+      constructDoc(getDocRef<Swipes>('parties', partyId, 'swipes', yelpId)),
   }
 
   async getCurrentUser() {
@@ -128,7 +146,12 @@ class UsersService {
     return usersSnapshot.docs.map(doc => doc.data())
   }
 
-  async getYelpBusinesses(options: Partial<Party['settings']>) {
+  async getYelpBusinesses(
+    options: Party['params'] &
+      Party['location'] & {
+        offset: number
+      }
+  ) {
     const data = { data: options }
     const res = await api.cloud.post<{
       result: YelpResponse
@@ -147,15 +170,26 @@ class UsersService {
   // }
 
   async getBusinesses(userId: string) {
-    const businessesRef = this.docs.businesses(userId).ref
-    const snapshot = await getDoc(businessesRef)
-    return snapshot.data()
+    const businessesRef = this.collections.businesses(userId).ref
+    const businessesQuery = query(businessesRef, orderBy('createdAt'))
+    const snapshot = await getDocs(businessesQuery)
+    return snapshot.docs.map(doc => doc.data()).filter(b => b)
+  }
+
+  async addBusiness(userId: string, data: Omit<Business, 'createdAt'>) {
+    const businessId = data.business.id
+    const businessesRef = this.docs.businesses(userId, businessId).ref
+    return setDoc(businessesRef, {
+      ...data,
+      createdAt: serverTimestamp(),
+    })
   }
 
   async getMatches(partyId: string) {
-    const matchesRef = this.docs.matches(partyId).ref
-    const snapshot = await getDoc(matchesRef)
-    return snapshot.data()
+    const matchesRef = this.collections.matches(partyId).ref
+    const matchesQuery = query(matchesRef, orderBy('createdAt', 'desc'))
+    const snapshot = await getDocs(matchesQuery)
+    return snapshot
   }
 
   async updateUser(data: any) {
@@ -201,6 +235,30 @@ class UsersService {
     const data = { data: { partyId } }
     const res = await api.cloud.post<void>('/deleteParty', data)
     return res.data
+  }
+
+  async swipe(
+    partyId: string,
+    yelpId: string,
+    userId: string,
+    action: SwipeAction
+  ) {
+    const swipesRef = this.docs.swipes(partyId, yelpId).ref
+
+    if (action === 'undo') {
+      return setDoc(swipesRef, { [userId]: deleteField() }, { merge: true })
+    }
+
+    return setDoc(
+      swipesRef,
+      {
+        [userId]: {
+          action,
+          timestamp: serverTimestamp(),
+        },
+      },
+      { merge: true }
+    )
   }
 
   /* SNAPSHOT EVENT LISTENERS */

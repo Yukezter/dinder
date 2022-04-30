@@ -10,7 +10,7 @@ import { Business } from '../context/FirestoreContext'
 import { Avatar, Stars } from '../common/components'
 
 interface BusinessListItemProps extends ListItemProps {
-  business?: Business
+  business?: Business['business']
 }
 
 const BusinessListItem: React.FC<BusinessListItemProps> = ({

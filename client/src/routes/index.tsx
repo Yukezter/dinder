@@ -9,6 +9,7 @@ import {
 import { useAuth, IAuthContext } from '../context/AuthContext'
 import { FirestoreProviders } from '../context/FirestoreContext'
 import { ProfileViewProvider } from '../context/ProfileViewContext'
+import { PartySettingsProvider } from '../context/PartySettingsContext'
 import { Landing, DashboardLayout, Dashboard, Settings, Party } from '../pages'
 import {
   GeneralSettings,
@@ -27,10 +28,12 @@ const ProtectedRoute = () => {
   return (
     <FirestoreProviders auth={auth as Required<IAuthContext>}>
       <ProfileViewProvider>
-        <DashboardLayout>
-          <Outlet />
-          {/* <Outlet context={{ auth } as { auth: Required<IAuthContext> }} /> */}
-        </DashboardLayout>
+        <PartySettingsProvider>
+          <DashboardLayout>
+            <Outlet />
+            {/* <Outlet context={{ auth } as { auth: Required<IAuthContext> }} /> */}
+          </DashboardLayout>
+        </PartySettingsProvider>
       </ProfileViewProvider>
     </FirestoreProviders>
   )
