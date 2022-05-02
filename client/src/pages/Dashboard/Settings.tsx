@@ -534,7 +534,7 @@ const Root = styled('div')(({ theme }) => ({
   },
 }))
 
-type SettingsMenuItem = {
+type SettingsMenuItemProps = {
   to: string
   pathname: string
   label?: string
@@ -543,7 +543,7 @@ type SettingsMenuItem = {
   setOpen?: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const SettingsMenuItem: React.FC<SettingsMenuItem> = props => {
+const SettingsMenuItem: React.FC<SettingsMenuItemProps> = props => {
   const { to, pathname, label, isDesktop, open, setOpen } = props
   const pathMatch = to === pathname
 
@@ -561,7 +561,7 @@ const SettingsMenuItem: React.FC<SettingsMenuItem> = props => {
   return (
     <ListItem className={pathMatch ? 'active' : ''} disablePadding>
       {!props.children ? (
-        <Link variant='body2' to={to} onClick={toggleMenu} width='100%'>
+        <Link to={to} variant='body2' onClick={toggleMenu} width='100%'>
           {label}
         </Link>
       ) : (

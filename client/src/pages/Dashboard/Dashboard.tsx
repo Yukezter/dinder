@@ -47,6 +47,7 @@ import { usePartySettings } from '../../context/PartySettingsContext'
 import {
   useUser,
   useParties,
+  useBusinesses,
   User,
   Party,
   PopulatedParty,
@@ -402,11 +403,11 @@ interface TabPanelProps {
   children?: React.ReactNode
   index: number
   value: number
-  loading?: boolean
+  isLoading?: boolean
 }
 
 const TabPanel: React.FC<TabPanelProps> = props => {
-  const { children, value, index, loading, ...other } = props
+  const { children, value, index, isLoading, ...other } = props
 
   return (
     <div
@@ -414,7 +415,7 @@ const TabPanel: React.FC<TabPanelProps> = props => {
       hidden={value !== index}
       id={`simple-tabpanel-${index}`}
       aria-labelledby={`simple-tab-${index}`}
-      style={{ height: '100%', overflow: loading ? 'hidden' : 'auto' }}
+      style={{ height: '100%', overflow: isLoading ? 'hidden' : 'auto' }}
       {...other}
     >
       {value === index && children}
@@ -427,29 +428,29 @@ const a11yProps = (index: number) => ({
   'aria-controls': `simple-tabpanel-${index}`,
 })
 
-const BusinessLists = ({ user }: { user: User }) => {
+const BusinessLists = () => {
+  const businesses = useBusinesses()
+
+  const saved = React.useMemo(() => {
+    if (!businesses.data) {
+      return Array(4).fill({})
+    }
+
+    return businesses.data.saved
+  }, [businesses.data])
+
+  const blocked = React.useMemo(() => {
+    if (!businesses.data) {
+      return Array(4).fill({})
+    }
+
+    return businesses.data.blocked
+  }, [businesses.data])
+
   const [value, setValue] = React.useState(0)
   const handleChange = (event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue)
   }
-
-  const businesses = useQuery<{ saved: Business[]; blocked: Business[] }>(
-    'businesses',
-    async () => {
-      const data = await usersService.getBusinesses(user.uid)
-      // const list = data ? Object.keys(data).map(k => data[k]) : []
-      return {
-        saved: data.filter(business => business.type === 'save'),
-        blocked: data.filter(business => business.type === 'block'),
-      }
-    },
-    {
-      placeholderData: {
-        saved: Array(4).fill({}),
-        blocked: Array(4).fill({}),
-      },
-    }
-  )
 
   const BusinessList = ({ list }: { list: Business[] }) => {
     if (!businesses.isPlaceholderData && list.length === 0) {
@@ -464,10 +465,10 @@ const BusinessLists = ({ user }: { user: User }) => {
 
     return (
       <List>
-        {list.map((data, index) => (
+        {list.map((business, index) => (
           <BusinessListItem
-            key={data?.business?.id || index}
-            business={data?.business}
+            key={business?.id || index}
+            details={business?.details}
             secondaryAction={
               <IconButton>
                 <DeleteIcon />
@@ -503,43 +504,19 @@ const BusinessLists = ({ user }: { user: User }) => {
           <Tab label='Blocked' {...a11yProps(1)} />
         </Tabs>
       </Box>
-      <TabPanel value={value} index={0} loading={businesses.isPlaceholderData}>
-        <BusinessList list={businesses.data!.saved} />
+      <TabPanel value={value} index={0} isLoading={businesses.isLoading}>
+        <BusinessList list={saved} />
       </TabPanel>
-      <TabPanel value={value} index={1} loading={businesses.isPlaceholderData}>
-        <BusinessList list={businesses.data!.blocked} />
+      <TabPanel value={value} index={1} isLoading={businesses.isLoading}>
+        <BusinessList list={blocked} />
       </TabPanel>
     </Paper>
   )
 }
 
-const useGetParties = (id: string) => {
-  return useQuery<PopulatedParty[]>(
-    'parties',
-    async () => {
-      const parties = await usersService.getParties(id)
-      const partiesWithMembers = []
-      for (const party of parties) {
-        const members = await usersService.getUsers(party.members)
-        partiesWithMembers.push({
-          ...party,
-          members: members.docs.map(member => member.data()),
-        })
-      }
-      console.log(partiesWithMembers)
-      return partiesWithMembers
-    },
-    {
-      placeholderData: [...Array(3).fill(undefined), ...Array(5).fill({})],
-      keepPreviousData: true,
-      cacheTime: 10 * 60 * 1000,
-    }
-  )
-}
-
 const Dashboard = () => {
   const user = useUser()
-  const { data, isPlaceholderData } = useGetParties(user.uid)
+  const { data, isPlaceholderData } = useParties()
 
   const parties = React.useMemo(() => {
     let table = [...data!]
@@ -644,51 +621,6 @@ const Dashboard = () => {
           rowSpacing={{ xs: 2, sm: 5 }}
         >
           <Grid item xs={6} lg={3}>
-            {/* <Card>
-              <CardActionArea onClick={() => openSettings()} sx={{ p: 2 }}>
-                <CardHeader
-                  disableTypography
-                  sx={{ p: 0, mb: 1 }}
-                  title={
-                    <Box display='flex' alignItems='center' mb={1}>
-                      <Avatar
-                        alt='Create party icon'
-                        size='small'
-                        sx={theme => ({
-                          background: theme.palette.primary.main,
-                          mr: 1,
-                        })}
-                      >
-                        <AddIcon />
-                      </Avatar>
-                      <Typography component='span' variant='body2'>
-                        New
-                      </Typography>
-                    </Box>
-                  }
-                  subheader={
-                    <Typography
-                      component='span'
-                      variant='body1'
-                      fontWeight={600}
-                    >
-                      Create Party
-                    </Typography>
-                  }
-                />
-                <Stack spacing={0.5}>
-                  <AvatarGroup total={0} disablePopover />
-                  <Typography
-                    variant='caption'
-                    overflow='hidden'
-                    textOverflow='ellipsis'
-                    whiteSpace='nowrap'
-                  >
-                    Invite friends to start swiping!
-                  </Typography>
-                </Stack>
-              </CardActionArea>
-            </Card> */}
             <PartyCard isCreatePartyCard />
           </Grid>
           {parties.cards.map((party, index) => (
@@ -709,7 +641,7 @@ const Dashboard = () => {
             <PartiesTable data={parties.table} columns={columns} />
           </Grid>
           <Grid item xs={12} lg={4} height={{ xs: 'auto', lg: '100%' }}>
-            <BusinessLists user={user} />
+            <BusinessLists />
           </Grid>
         </Grid>
       </Box>
@@ -718,57 +650,3 @@ const Dashboard = () => {
 }
 
 export default Dashboard
-
-// const PartyCar: React.FC<PartyCardProps> = props => {
-//   const { party } = props
-
-//   return (
-//     <Card sx={{ p: 2 }}>
-//       <Link to={`/party/${party?.id}`} display='block'>
-//         <CardHeader
-//           action={<PartyPopper party={party} />}
-//           disableTypography
-//           sx={{ p: 0, mb: 1 }}
-//           title={
-//             <Box display='flex' alignItems='center' mb={1}>
-//               <Avatar alt='John Doe' size='small' sx={{ mr: 1 }} />
-//               <Typography component='span' variant='body2'>
-//                 {party.members.find(({ uid }) => uid === party.admin)?.username}
-//               </Typography>
-//             </Box>
-//           }
-//           subheader={
-//             <Typography
-//               component='span'
-//               variant='body1'
-//               fontWeight={600}
-//               noWrap
-//             >
-//               {party.name}
-//             </Typography>
-//           }
-//         />
-//         <Stack spacing={0.5}>
-//           <AvatarGroup users={party?.members} />
-//           <Typography
-//             variant='caption'
-//             overflow='hidden'
-//             textOverflow='ellipsis'
-//             whiteSpace='nowrap'
-//           >
-//             Ana, Bryan, George, and 21 others
-//           </Typography>
-//         </Stack>
-//       </Link>
-//     </Card>
-//   )
-// }
-
-// const randomDate = (start: Date, end: Date) => {
-//   return new Date(
-//     start.getTime() + Math.random() * (end.getTime() - start.getTime())
-//   )
-// }
-
-// const randomTimestamp = () =>
-//   randomDate(new Date(2022, 0, 1), new Date()).getTime()

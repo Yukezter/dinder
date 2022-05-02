@@ -1,13 +1,15 @@
 import {
-  collection,
-  doc,
+  collection as _collection,
+  doc as _doc,
   addDoc,
   getDoc,
   setDoc,
+  deleteDoc,
   query,
   orderBy,
   where,
   onSnapshot,
+  QueryConstraint,
   serverTimestamp,
   DocumentSnapshot,
   DocumentData,
@@ -22,6 +24,7 @@ import {
   documentId,
   DocumentReference,
   CollectionReference,
+  OrderByDirection,
   Query,
   getDocs,
   WhereFilterOp,
@@ -52,65 +55,83 @@ const converter = <T>() => ({
   },
 })
 
-const getCollectionRef = <T>(path: string, ...rest: string[]) => {
-  return collection(firestore, path, ...rest).withConverter(converter<T>())
+const collection = <T>(path: string, ...rest: string[]) => {
+  return _collection(firestore, path, ...rest).withConverter(converter<T>())
 }
 
-const getDocRef = <T>(path: string, ...rest: string[]) => {
-  return doc(firestore, path, ...rest).withConverter(converter<T>())
+const doc = <T>(path: string, ...rest: string[]) => {
+  return _doc(firestore, path, ...rest).withConverter(converter<T>())
 }
 
-const constructCollection = <T extends unknown>(
-  collectionRef: CollectionReference<T>
-) => ({
+const c = <T extends unknown>(collectionRef: CollectionReference<T>) => ({
   ref: collectionRef,
-  where: (
-    fieldPath: string | FieldPath,
-    opStr: WhereFilterOp,
-    value: unknown
-  ) => {
-    return query(collectionRef, where(fieldPath, opStr, value))
+  where(fieldPath: string | FieldPath, opStr: WhereFilterOp, value: unknown) {
+    return query(this.ref, where(fieldPath, opStr, value))
   },
 })
 
-const constructDoc = <T extends unknown>(
-  documentRef: DocumentReference<T>
-) => ({
+const d = <T extends unknown>(documentRef: DocumentReference<T>) => ({
   ref: documentRef,
 })
 
-class UsersService {
+const col = <T>(path: string, ...rest: string[]) => {
+  const ref = _collection(firestore, path, ...rest).withConverter(
+    converter<T>()
+  )
+  return {
+    ref,
+    queryConstraints: [] as QueryConstraint[],
+    where(fieldPath: string | FieldPath, opStr: WhereFilterOp, value: unknown) {
+      this.queryConstraints.push(where(fieldPath, opStr, value))
+      return this
+    },
+    orderBy(
+      fieldPath: string | FieldPath,
+      directionStr?: OrderByDirection | undefined
+    ) {
+      this.queryConstraints.push(orderBy(fieldPath, directionStr))
+      return this
+    },
+    query() {
+      const queryConstraints = [...this.queryConstraints]
+      this.queryConstraints = []
+      return query(ref, ...queryConstraints)
+    },
+  }
+}
+
+export class UsersService {
   collections = {
-    status: constructCollection(getCollectionRef<OnlineStatus>('status')),
-    usernames: constructCollection(getCollectionRef<Username>('usernames')),
-    users: constructCollection(getCollectionRef<User>('users')),
+    status: c(collection<OnlineStatus>('status')),
+    usernames: c(collection<Username>('usernames')),
+    users: c(collection<User>('users')),
     businesses: (userId: string) =>
-      constructCollection(
-        getCollectionRef<Business>('users', userId, 'businesses')
-      ),
-    parties: constructCollection(getCollectionRef<Party>('parties')),
+      c(collection<Business>('users', userId, 'businesses')),
+    parties: c(collection<Party>('parties')),
     swipes: (partyId: string) =>
-      constructCollection(
-        getCollectionRef<Swipes>('parties', partyId, 'swipes')
-      ),
+      c(collection<Swipes>('parties', partyId, 'swipes')),
     matches: (partyId: string) =>
-      constructCollection(
-        getCollectionRef<Match>('parties', partyId, 'matches')
-      ),
+      c(collection<Match>('parties', partyId, 'matches')),
+  }
+
+  static collection = {
+    users: () => col<User>('users'),
+    businesses: (userId: string) =>
+      col<Business>('users', userId, 'businesses'),
+    parties: () => col<Party>('parties'),
+    matches: (partyId: string) => col<Match>('parties', partyId, 'matches'),
   }
 
   docs = {
-    user: (userId: string) => constructDoc(getDocRef<User>('users', userId)),
-    contacts: (userId: string) =>
-      constructDoc(getDocRef<Contacts>('contacts', userId)),
+    user: (userId: string) => d(doc<User>('users', userId)),
+    contacts: (userId: string) => d(doc<Contacts>('contacts', userId)),
     userParties: (partyId: string) =>
-      constructDoc(getDocRef<UserParties>('user_parties', partyId)),
-    party: (partyId: string) =>
-      constructDoc(getDocRef<Party>('parties', partyId)),
+      d(doc<UserParties>('user_parties', partyId)),
+    party: (partyId: string) => d(doc<Party>('parties', partyId)),
     businesses: (userId: string, yelpId: string) =>
-      constructDoc(getDocRef<Business>('users', userId, 'businesses', yelpId)),
+      d(doc<Business>('users', userId, 'businesses', yelpId)),
     swipes: (partyId: string, yelpId: string) =>
-      constructDoc(getDocRef<Swipes>('parties', partyId, 'swipes', yelpId)),
+      d(doc<Swipes>('parties', partyId, 'swipes', yelpId)),
   }
 
   async getCurrentUser() {
@@ -159,37 +180,20 @@ class UsersService {
     return res.data.result
   }
 
-  // async getParties(partyIds: string) {
-  //   const partiesRef = this.collections.parties.where(
-  //     documentId(),
-  //     'in',
-  //     partyIds
-  //   )
-  //   const usersSnapshot = await getDocs(partiesRef)
-  //   return usersSnapshot.docs.map(doc => doc.data())
-  // }
-
   async getBusinesses(userId: string) {
     const businessesRef = this.collections.businesses(userId).ref
-    const businessesQuery = query(businessesRef, orderBy('createdAt'))
-    const snapshot = await getDocs(businessesQuery)
+    const snapshot = await getDocs(businessesRef)
     return snapshot.docs.map(doc => doc.data()).filter(b => b)
   }
 
-  async addBusiness(userId: string, data: Omit<Business, 'createdAt'>) {
-    const businessId = data.business.id
-    const businessesRef = this.docs.businesses(userId, businessId).ref
-    return setDoc(businessesRef, {
-      ...data,
-      createdAt: serverTimestamp(),
-    })
+  async addBusiness(userId: string, data: Business) {
+    const businessesRef = this.docs.businesses(userId, data.id).ref
+    return setDoc(businessesRef, data)
   }
 
-  async getMatches(partyId: string) {
-    const matchesRef = this.collections.matches(partyId).ref
-    const matchesQuery = query(matchesRef, orderBy('createdAt', 'desc'))
-    const snapshot = await getDocs(matchesQuery)
-    return snapshot
+  async deleteBusiness(userId: string, yelpId: string) {
+    const businessesRef = this.docs.businesses(userId, yelpId).ref
+    return deleteDoc(businessesRef)
   }
 
   async updateUser(data: any) {

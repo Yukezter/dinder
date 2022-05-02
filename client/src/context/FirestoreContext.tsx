@@ -1,7 +1,9 @@
 import React from 'react'
 import { Timestamp, FieldValue } from 'firebase/firestore'
+import { useQuery, useQueryClient, UseQueryResult } from 'react-query'
 
 import { usersService } from '../services'
+import { UsersService } from '../services/users'
 import { IAuthContext } from '../context/AuthContext'
 
 const sleepThenThrow = (ms: number = 3000) =>
@@ -32,9 +34,8 @@ export type UserParties = { [partyId: string]: boolean }
 
 export interface Business {
   type: 'save' | 'block'
-  createdAt: Timestamp
-  business: {
-    id: string
+  id: string
+  details: {
     image: string
     name: string
     price: string
@@ -48,9 +49,10 @@ export interface Business {
 
 export type Match = {
   type: 'like' | 'super-like'
+  id: string
   createdAt: Timestamp
-  last: string
-  business: Business['business']
+  details: Business['details']
+  lastToSwipe: string
 }
 
 export type Businesses = {
@@ -156,7 +158,7 @@ export const UserProvider: React.FC<{ id: string }> = props => {
     return () => {
       unsubscribe()
     }
-  }, [])
+  }, [id])
 
   return <UserContext.Provider value={user!}>{children}</UserContext.Provider>
 }
@@ -182,7 +184,7 @@ export const ContactsProvider: React.FC<{ id: string }> = props => {
     return () => {
       unsubscribe()
     }
-  }, [])
+  }, [id])
 
   return (
     <ContactsContext.Provider value={contacts}>
@@ -191,33 +193,124 @@ export const ContactsProvider: React.FC<{ id: string }> = props => {
   )
 }
 
-const PartiesContext = React.createContext<UserParties>({} as UserParties)
+const PartiesContext = React.createContext<
+  UseQueryResult<PopulatedParty[], unknown>
+>({} as UseQueryResult<PopulatedParty[], unknown>)
 export const useParties = () => React.useContext(PartiesContext)
 
 export const PartiesProvider: React.FC<{ id: string }> = props => {
   const { children, id } = props
-  const [parties, setParties] = React.useState<UserParties>({})
+
+  if (!id) {
+    throw new Error('No user id provided!')
+  }
+
+  const queryClient = useQueryClient()
+  const parties = useQuery<PopulatedParty[]>(
+    'parties',
+    () => new Promise<PopulatedParty[]>(() => {}),
+    {
+      placeholderData: [...Array(3).fill(undefined), ...Array(5).fill({})],
+      keepPreviousData: true,
+      cacheTime: 10 * 60 * 1000,
+    }
+  )
 
   React.useEffect(() => {
-    if (!id) {
-      return
-    }
+    const partiesCollection = UsersService.collection.parties()
+    const q = partiesCollection.where('members', 'array-contains', id).query()
+    const unsubscribe = usersService.onCollectionSnapshot(q, snapshot => {
+      const newParties = snapshot.docs.map(doc => doc.data()).filter(Boolean)
 
-    const userRef = usersService.docs.userParties(id).ref
-    const unsubscribe = usersService.onDocumentSnapshot(userRef, snapshot => {
-      const data = snapshot.data() || {}
-      setParties(data)
+      const populateParties = async () => {
+        const partiesWithMembers = []
+        for (const party of newParties) {
+          const members = await usersService.getUsers(party.members)
+          partiesWithMembers.push({
+            ...party,
+            members: members.docs.map(member => member.data()),
+          })
+        }
+
+        queryClient.setQueryData('parties', partiesWithMembers)
+      }
+
+      populateParties().catch(error => {
+        console.log(error)
+      })
     })
 
     return () => {
       unsubscribe()
     }
-  }, [])
+  }, [id, queryClient])
 
   return (
     <PartiesContext.Provider value={parties}>
       {children}
     </PartiesContext.Provider>
+  )
+}
+
+export type BusinessesData = { saved: Business[]; blocked: Business[] }
+
+const BusinessesContext = React.createContext<UseQueryResult<BusinessesData>>(
+  {} as UseQueryResult<BusinessesData>
+)
+export const useBusinesses = () => React.useContext(BusinessesContext)
+
+export const BusinessesProvider: React.FC<{ id: string }> = props => {
+  const { children, id } = props
+
+  if (!id) {
+    throw new Error('No user id provided!')
+  }
+
+  const queryClient = useQueryClient()
+  const businesses = useQuery<Business[], unknown, BusinessesData>(
+    'businesses',
+    () => new Promise<Business[]>(() => {}),
+    {
+      select(data) {
+        const sorted = data.sort((a, b) => {
+          if (a.details.name < b.details.name) {
+            return -1
+          }
+          if (a.details.name > b.details.name) {
+            return 1
+          }
+          return 0
+        })
+        return {
+          saved: sorted.filter(business => business.type === 'save'),
+          blocked: sorted.filter(business => business.type === 'block'),
+        }
+      },
+      cacheTime: 10 * 60 * 1000,
+    }
+  )
+
+  React.useEffect(() => {
+    const businessesRef = UsersService.collection.businesses(id).ref
+    const unsubscribe = usersService.onCollectionSnapshot(
+      businessesRef,
+      snapshot => {
+        const newBusinesses = snapshot.docs
+          .map(doc => doc.data())
+          .filter(Boolean)
+        queryClient.setQueryData('businesses', newBusinesses)
+      }
+    )
+
+    return () => {
+      unsubscribe()
+    }
+  }, [id, queryClient])
+
+  return (
+    <BusinessesContext.Provider value={businesses}>
+      {children}
+    </BusinessesContext.Provider>
   )
 }
 
@@ -297,380 +390,13 @@ export const FirestoreProviders: React.FC<FirestoreProvidersProps> = props => {
     <UserProvider id={auth.user.uid}>
       <ContactsProvider id={auth.user.uid}>
         <PartiesProvider id={auth.user.uid}>
-          <PresenceProvider>
-            <Loading>{children}</Loading>
-          </PresenceProvider>
+          <BusinessesProvider id={auth.user.uid}>
+            <PresenceProvider>
+              <Loading>{children}</Loading>
+            </PresenceProvider>
+          </BusinessesProvider>
         </PartiesProvider>
       </ContactsProvider>
     </UserProvider>
   )
 }
-
-// const [user] = useOnDocumentSnapshot<User>({
-//   ref: usersService.docs.user(auth.user.uid).ref,
-//   error: error => {
-//     console.log(error)
-//   },
-// })
-
-// const [contactIds, setContactIds] = useOnDocumentSnapshot({
-//   ref: usersService.docs.contacts(auth.user.uid).ref,
-//   error(error) {
-//     console.log(error)
-//   },
-// })
-
-// const [partyIds, setPartyIds] = useOnDocumentSnapshot({
-//   ref: usersService.docs.userParties(auth.user.uid).ref,
-//   error(error) {
-//     console.log(error)
-//   },
-// })
-
-// ---------------------------------------------------------------------------------
-
-// const [user, setUser] = React.useState<User>()
-// const [contacts, setContacts] = React.useState<User[]>()
-// const [parties, setParties] = React.useState<Party[]>()
-
-// React.useEffect(() => {
-//   let unsubscribeOnUserSnapshot: Unsubscribe | null = null
-//   let unsubscribeOnContactsSnapshot: Unsubscribe | null = null
-//   let unsubscribeOnPartiesSnapshot: Unsubscribe | null = null
-
-//   const unsubscribeOnAuthStateChanged = onAuthStateChanged(
-//     auth,
-//     user => {
-//       if (unsubscribeOnUserSnapshot) {
-//         unsubscribeOnUserSnapshot()
-//       }
-
-//       if (unsubscribeOnContactsSnapshot) {
-//         unsubscribeOnContactsSnapshot()
-//       }
-
-//       if (user) {
-//         const { uid } = user
-
-//         unsubscribeOnUserSnapshot = usersService.onDocumentSnapshot(
-//           usersService.docs.user(uid).ref,
-//           snapshot => {
-//             const data = snapshot.data()
-//             console.log(data)
-//             if (data) setUser(data)
-//           },
-//           err => console.log(err)
-//         )
-
-//         unsubscribeOnContactsSnapshot = usersService.onDocumentSnapshot(
-//           usersService.docs.contacts(uid).ref,
-//           snapshot => {
-//             const data = snapshot.data()
-//             if (data) {
-//               const contactIds = Object.keys(data).filter(id => data[id])
-//               usersService
-//                 .getUsers(contactIds)
-//                 .then(contactsSnapshot => {
-//                   const newContacts = contactsSnapshot.docs.map(doc =>
-//                     doc.data()
-//                   )
-//                   console.log('unsubscribeOnContactsSnapshot', newContacts)
-//                   setContacts(newContacts)
-//                 })
-//                 .catch(err => {
-//                   console.log(err)
-//                 })
-//             } else {
-//               setContacts([])
-//             }
-//           },
-//           err => console.log(err)
-//         )
-
-//         unsubscribeOnPartiesSnapshot = usersService.onPartiesSnapshot(
-//           uid,
-//           snapshot => {
-//             setParties(snapshot.docs.map(doc => doc.data()))
-//           },
-//           err => console.log(err)
-//         )
-//       }
-//     },
-//     err => {
-//       console.log(err)
-//     }
-//   )
-
-//   return unsubscribeOnAuthStateChanged
-// }, [])
-
-// type ContactsMutationResult = UseMutationResult<string, FirestoreError, { user: User }>
-// type PartyMutationResult = UseMutationResult<void, FirestoreError, Party>
-
-// const queryClient = useQueryClient()
-
-// const addContact = React.useCallback(async (contact: User) => {
-//   await queryClient.executeMutation<string, FirestoreError, User>({
-//     mutationKey: ['contacts', contact.uid],
-//     variables: contact,
-//     retry: 3,
-//     mutationFn: async data => {
-//       await sleepThenThrow()
-//       return usersService.addContact(data.uid)
-//     },
-//     async onMutate(data) {
-//       contacts.setData(prevData => [...prevData!, data])
-//     },
-//     onError(error, variables) {
-//       contacts.setData(prevData =>
-//         prevData!.filter(({ uid }) => uid !== variables.uid)
-//       )
-//     },
-//   })
-// }, [])
-
-// const deleteContact = React.useCallback(async (contact: User) => {
-//   const mutation = queryClient.getMutationCache().find({
-//     mutationKey: ['contacts', contact.uid],
-//     exact: true,
-//   })
-
-//   if (mutation) {
-//     await mutation.execute()
-//   } else {
-//     await queryClient.executeMutation<string, FirestoreError, User>({
-//       mutationKey: ['contacts', contact.uid],
-//       variables: contact,
-//       // retry: 3,
-//       mutationFn: async data => {
-//         await sleepThenThrow()
-//         return usersService.deleteContact(data.uid)
-//       },
-//       async onMutate(data) {
-//         contacts.setData(prevData =>
-//           prevData!.filter(({ uid }) => uid !== data.uid)
-//         )
-//       },
-//       onError(error, variables) {
-//         contacts.setData(prevData => [...prevData!, variables])
-//       }
-//     })
-//   }
-// }, [])
-
-// const blockContact = React.useCallback(async (contact: User) => {
-//   await queryClient.executeMutation<string, FirestoreError, User>({
-//     mutationKey: ['contacts', contact.uid],
-//     variables: contact,
-//     retry: 3,
-//     mutationFn: async data => {
-//       return usersService.blockContact(data.uid)
-//     },
-//     async onMutate(data) {
-//       contacts.setData(prevData =>
-//         prevData!.filter(({ uid }) => uid !== data.uid)
-//       )
-//     },
-//     onError(error, variables) {
-//       contacts.setData(prevData => [...prevData!, variables])
-//     }
-//   })
-// }, [])
-
-// const updateParty = React.useCallback(async (party: Party) => {
-//   await queryClient.executeMutation<void, FirestoreError, Party>({
-//     mutationKey: ['contacts', party.id],
-//     variables: party,
-//     retry: 3,
-//     mutationFn: async party => usersService.updateParty(party),
-//     async onSuccess(data, party) {
-//       const members = await usersService.getUsers(party.members)
-//       parties.setData(prevData => {
-//         const newParties = prevData!.filter(({ id }) => id !== party.id)
-//         return [
-//           ...newParties,
-//           {
-//             ...party,
-//             members: members.docs.map(doc => doc.data()),
-//           },
-//         ]
-//       })
-//     },
-//   })
-// }, [])
-
-// const deleteParty = React.useCallback(async (party: PopulatedParty) => {
-//   await queryClient.executeMutation<void, FirestoreError, PopulatedParty>({
-//     mutationKey: ['contacts', party.id],
-//     variables: party,
-//     retry: 3,
-//     mutationFn: async party => usersService.deleteParty(party.id),
-//     onMutate(party) {
-//       parties.setData(prevData =>
-//         prevData!.filter(({ id }) => id !== party.id)
-//       )
-//     },
-//     onError(data, party) {
-//       parties.setData(prevData => [...prevData!, party])
-//     },
-//   })
-// }, [])
-
-// const hasPendingUpdate = React.useCallback((mutationKey: MutationKey) => {
-//   const mutation = queryClient.getMutationCache().find({
-//     mutationKey,
-//     exact: true,
-//     predicate: mutation => mutation.state.status === 'loading',
-//   })
-
-//   const all = queryClient.getMutationCache().getAll()
-//   console.log(all.map(a => a.state))
-//   if (!mutation) {
-//     return false
-//   }
-
-//   console.log('hasPendingUpdate', mutation)
-//   console.log('hasPendingUpdate', mutation.state)
-//   return true
-// }, [])
-
-// const requestsQueue = React.useMemo<(() => Promise<void>)[]>(() => [], [])
-
-//   const debouncedUpdate = React.useCallback(
-//     debounce(() => {
-//       if (requestsQueue.length === 0) {
-//         return
-//       }
-
-//     }, 5000),
-//     []
-//   )
-
-//   const addUpdateToRequestQueue = React.useCallback((id: string, request: () => Promise<string>): Promise<string> => {
-//     return new Promise((resolve, reject) => {
-//       requestsQueue.push(async () => {
-//         try {
-//           const value = await request()
-//           resolve(value)
-//         } catch (error) {
-//           reject(error)
-//         }
-//       })
-//     })
-//   }, [])
-
-// import React from 'react'
-// import { onAuthStateChanged } from 'firebase/auth'
-// import { Unsubscribe } from 'firebase/firestore'
-
-// import { auth } from '../app/firebase'
-// import { usersService } from '../services'
-
-// export type OnlineStatus = {
-//   state: 'online' | 'offline'
-//   lastOnline?: string
-// }
-
-// export type Username = { userId: string }
-
-// export type User = {
-//   uid: string
-//   photoURL: string
-//   name: string
-//   username: string
-//   about: string
-// }
-
-// export type Contacts = { [userId: string]: boolean }
-
-// export interface IFirestoreContext {
-//   user: User | undefined
-//   setUser: React.Dispatch<React.SetStateAction<User | undefined>>
-//   contacts: User[]
-// }
-
-// const FirestoreContext = React.createContext<IFirestoreContext>(
-//   {} as IFirestoreContext
-// )
-
-// export const useFirestore = () => React.useContext(FirestoreContext)
-
-// export const FirestoreProvider: React.FC = ({ children }) => {
-//   const [user, setUser] = React.useState<User>()
-//   const [contacts, setContacts] = React.useState<User[]>()
-
-//   React.useEffect(() => {
-//     let unsubscribeOnUserSnapshot: Unsubscribe | null = null
-//     let unsubscribeOnContactsSnapshot: Unsubscribe | null = null
-
-//     const unsubscribeOnAuthStateChanged = onAuthStateChanged(
-//       auth,
-//       user => {
-//         if (unsubscribeOnUserSnapshot) {
-//           unsubscribeOnUserSnapshot()
-//         }
-
-//         if (unsubscribeOnContactsSnapshot) {
-//           unsubscribeOnContactsSnapshot()
-//         }
-
-//         if (user) {
-//           const { uid } = user
-
-//           unsubscribeOnUserSnapshot = usersService.onUserSnapshot(
-//             uid,
-//             snapshot => {
-//               const data = snapshot.data()
-//               console.log(data)
-//               if (data) setUser(data)
-//             },
-//             err => console.log(err)
-//           )
-
-//           unsubscribeOnContactsSnapshot = usersService.onContactsSnapshot(
-//             uid,
-//             snapshot => {
-//               const data = snapshot.data()
-//               if (data) {
-//                 const contactIds = Object.keys(data).filter(contactId => {
-//                   return data[contactId]
-//                 })
-
-//                 console.log('onContactsSnapshot', data)
-
-//                 usersService
-//                   .getUsers(contactIds)
-//                   .then(contactsSnapshot => {
-//                     setContacts(contactsSnapshot.docs.map(doc => doc.data()))
-//                   })
-//                   .catch(err => {
-//                     console.log(err)
-//                   })
-//               } else {
-//                 setContacts([])
-//               }
-//             },
-//             err => console.log(err)
-//           )
-//         }
-//       },
-//       err => {
-//         console.log(err)
-//       }
-//     )
-
-//     return unsubscribeOnAuthStateChanged
-//   }, [])
-
-//   if (!user || !contacts) {
-//     return <div>Loading...</div>
-//   }
-
-//   const value = { user, setUser, contacts }
-
-//   return (
-//     <FirestoreContext.Provider value={value}>
-//       {children}
-//     </FirestoreContext.Provider>
-//   )
-// }

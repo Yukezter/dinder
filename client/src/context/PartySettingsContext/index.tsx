@@ -151,15 +151,12 @@ export const PartySettingsProvider: React.FC = props => {
     [user.uid]
   )
 
-  const id = React.useMemo(() => {
-    return state?.party?.id || doc(usersService.collections.parties.ref).id
-  }, [state?.party?.id])
-
   const handleUpdateParty = () => {
     if (isOpen && state) {
       const { party } = state
 
       if (party.location) {
+        const id = party?.id || doc(usersService.collections.parties.ref).id
         updateParty.mutate(
           {
             ...party,

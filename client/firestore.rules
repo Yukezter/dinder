@@ -38,15 +38,17 @@ service cloud.firestore {
       match /businesses/{yelpId} {
         allow read, delete: if ownsResource(userId);
         allow create, update: if hasAccess() && ownsResource(userId) &&
-          request.resource.data.id is string &&
-          request.resource.data.image is string &&
-          request.resource.data.name is string &&
-          request.resource.data.rating is float &&
-          request.resource.data.location is string &&
-          request.resource.data.reviews is int &&
-          request.resource.data.url is string &&
+          request.resource.data.keys().hasOnly(['type', 'id', 'details']) &&
           (request.resource.data.type == 'save' || request.resource.data.type == 'block') &&
-          request.resource.data.createdAt is timestamp;
+          request.resource.data.id is string &&
+          request.resource.data.details.image is string &&
+          request.resource.data.details.name is string &&
+          (request.resource.data.details.rating is int || request.resource.data.details.rating is float) && 
+          request.resource.data.details.price is string &&
+          request.resource.data.details.categories is string &&
+          request.resource.data.details.location is string &&
+          request.resource.data.details.reviews is int &&
+          request.resource.data.details.url is string;
       }
     }
 

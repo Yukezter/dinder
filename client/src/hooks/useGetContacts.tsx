@@ -21,13 +21,10 @@ const useGetContacts = (options: UseQueryOptions<User[]> = {}) => {
       staleTime: 60 * 1000,
       select(data) {
         return data.sort((a, b) => {
-          if (!a || !b) {
-            return 0
-          }
-          if (a!.name < b!.name) {
+          if (a.name < b.name) {
             return -1
           }
-          if (a!.name > b!.name) {
+          if (a.name > b.name) {
             return 1
           }
           return 0

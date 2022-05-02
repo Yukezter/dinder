@@ -64,10 +64,10 @@ type Members = { [userId: string]: true }
 
 // Business (saved or blocked)
 interface Business {
+  id: string
   type: 'save' | 'block'
   createdAt: Timestamp
-  business: {
-    id: string
+  details: {
     image: string
     name: string
     price: string
@@ -89,10 +89,11 @@ interface Swipes {
 }
 
 type Match = {
+  id: string
   type: 'like' | 'super-like'
   createdAt: Timestamp
-  last: string
-  business: Business['business']
+  details: Business['details']
+  lastToSwipe: string
 }
 
 // // Party session match history
@@ -393,6 +394,7 @@ export const onFileDelete = functions.storage
   })
 
 /* ON SWIPE */
+
 export const onSwipe = functions.firestore
   .document('parties/{partyId}/swipes/{yelpId}')
   .onWrite(async (change, context) => {
@@ -429,8 +431,7 @@ export const onSwipe = functions.firestore
           if (superLikeMatch || likeMatch) {
             const res = await yelpAPI.get(`/businesses/${yelpId}`)
             const business = res.data
-            const matchedBusiness: Business['business'] = {
-              id: business.id,
+            const details: Business['details'] = {
               image: business.image_url,
               name: business.name,
               price: business.price,
@@ -439,24 +440,28 @@ export const onSwipe = functions.firestore
               categories: business.categories
                 .map(({ title }: { title: string }) => title)
                 .join(', '),
-              location: `${business.location.country}, ${business.location.city}`,
+              location:
+                `${business.location.city}, ${business.location.state}`.concat(
+                  `, ${business.location.country}`
+                ),
               url: business.url,
             }
 
-            const lastUserToMatch = Object.keys(swipes).reduce((a, b) =>
+            const lastToSwipe = Object.keys(swipes).reduce((a, b) =>
               swipes[a].timestamp.toMillis() > swipes[b].timestamp.toMillis()
                 ? a
                 : b
             )
 
-            const matchesRef = matches(partyId).doc(yelpId)
+            const matchesRef = matches(partyId).doc()
             tx.set(
               matchesRef,
               {
+                id: business.id,
                 type: superLikeMatch ? 'super-like' : 'like',
-                last: lastUserToMatch,
-                business: matchedBusiness,
                 createdAt: Timestamp.now(),
+                details,
+                lastToSwipe,
               },
               { merge: true }
             )
@@ -768,17 +773,21 @@ export const updateParty = functions.https.onCall(
 
       // Create the party
       const partyRef = parties.doc(data.id)
-      tx.set(partyRef, {
-        ...data,
-        createdAt: new Timestamp(
-          data.createdAt.seconds,
-          data.createdAt.nanoseconds
-        ),
-        lastActive: new Timestamp(
-          data.lastActive.seconds,
-          data.lastActive.nanoseconds
-        ),
-      })
+      tx.set(
+        partyRef,
+        {
+          ...data,
+          createdAt: new Timestamp(
+            data.createdAt.seconds,
+            data.createdAt.nanoseconds
+          ),
+          lastActive: new Timestamp(
+            data.lastActive.seconds,
+            data.lastActive.nanoseconds
+          ),
+        },
+        { merge: true }
+      )
 
       // Create members document for fast members reads
       const membersRef = members.doc(partyRef.id)

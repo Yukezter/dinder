@@ -8,8 +8,17 @@ import {
 import { SxProps, Theme } from '@mui/material'
 import Link, { LinkProps as MuiLinkProps } from '@mui/material/Link'
 
+const LinkBehavior = React.forwardRef<
+  any,
+  Omit<RouterLinkProps, 'to'> & { href: RouterLinkProps['to'] }
+>((props, ref) => {
+  const { href, ...other } = props
+  return <RouterLink ref={ref} to={href} {...other} />
+})
+
 export type LinkProps = MuiLinkProps &
   RouterLinkProps & {
+    to: string
     activeSx?: SxProps<Theme>
   }
 
@@ -18,7 +27,6 @@ export default React.forwardRef<HTMLAnchorElement, LinkProps>(
     // const resolved = useResolvedPath(to)
     // const match = useMatch({ path: resolved.pathname, end: true })
 
-    const allSx = [...(Array.isArray(sx) ? sx : [sx])]
     // if (match) {
     //   allSx.push(...(Array.isArray(activeSx) ? activeSx : [activeSx]))
     // }
@@ -26,14 +34,14 @@ export default React.forwardRef<HTMLAnchorElement, LinkProps>(
     return (
       <Link
         ref={ref}
-        component={RouterLink}
+        href={to}
+        component={LinkBehavior}
         color='inherit'
         underline='none'
         display='flex'
         width='100%'
         alignItems='center'
-        to={to}
-        sx={allSx}
+        sx={Array.isArray(sx) ? sx : [sx]}
         {...props}
       />
     )

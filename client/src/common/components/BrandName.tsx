@@ -1,7 +1,6 @@
 /* eslint-disable import/no-anonymous-default-export */
-import Box from '@mui/material/Box'
 
-import Link, { LinkProps } from './Link'
+import Link, { LinkProps } from './RouterLink'
 
 export default ({ sx = [], ...props }: LinkProps) => {
   return (

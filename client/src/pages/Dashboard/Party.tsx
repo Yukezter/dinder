@@ -1,12 +1,13 @@
 import React from 'react'
-import { query, orderBy } from 'firebase/firestore'
+import debounce from 'lodash.debounce'
 import { useParams, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import {
   useQuery,
   useMutation,
   useInfiniteQuery,
-  UseInfiniteQueryOptions,
   useQueryClient,
+  UseInfiniteQueryOptions,
+  UseQueryResult,
 } from 'react-query'
 import {
   motion,
@@ -22,7 +23,6 @@ import Grid from '@mui/material/Grid'
 import Dialog, { DialogProps } from '@mui/material/Dialog'
 import Hidden from '@mui/material/Hidden'
 import Typography from '@mui/material/Typography'
-import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import Popper from '@mui/material/Popper'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
@@ -32,32 +32,44 @@ import MenuList from '@mui/material/MenuList'
 import MenuItem from '@mui/material/MenuItem'
 import Chip from '@mui/material/Chip'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
-import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-import SvgIcon from '@mui/material/SvgIcon'
-import { ReactComponent as BlockIcon } from '../../assets/icons/block_icon.svg'
-import { ReactComponent as DislikeIcon } from '../../assets/icons/dislike_icon.svg'
-import { ReactComponent as FavoriteIcon } from '../../assets/icons/favorite_icon.svg'
-import { ReactComponent as LikeIcon } from '../../assets/icons/like_icon.svg'
-import { ReactComponent as SuperlikeIcon } from '../../assets/icons/superlike_icon.svg'
-import { ReactComponent as UndoIcon } from '../../assets/icons/undo_icon.svg'
 
 import { usersService } from '../../services'
+import { UsersService } from '../../services/users'
+import { PartiesService } from '../../services/parties'
 import {
   useUser,
   useParties,
+  useBusinesses,
   PopulatedParty,
   YelpResponse,
   YelpBusiness,
   Business,
+  BusinessesData,
   Swipes,
   SwipeAction,
   Match,
 } from '../../context/FirestoreContext'
 import { useProfile } from '../../context/ProfileViewContext'
 import { usePartySettings } from '../../context/PartySettingsContext'
-import { usePopper, useOnDocumentSnapshot } from '../../hooks'
+import {
+  usePopper,
+  useAddBusiness,
+  useDeleteBusiness,
+  useOnDocumentSnapshot,
+} from '../../hooks'
 import { BusinessListItem } from '../../components'
-import { IconButton, Avatar, DividerText, Stars } from '../../common/components'
+import {
+  IconButton,
+  Avatar,
+  DividerText,
+  Stars,
+  OpenInNewLink,
+} from '../../common/components'
+import BlockIcon from '../../common/icons/Block'
+import DislikeIcon from '../../common/icons/Dislike'
+import SuperLikeIcon from '../../common/icons/SuperLike'
+import LikeIcon from '../../common/icons/Like'
+import FavoriteIcon from '../../common/icons/Favorite'
 
 const PartyOptionsPopper = ({
   party,
@@ -175,11 +187,7 @@ const Members: React.FC<MembersProps> = props => {
 }
 
 type SwipeButtonProps = IconButtonProps & {
-  Icon: React.FunctionComponent<
-    React.SVGProps<SVGSVGElement> & {
-      title?: string | undefined
-    }
-  >
+  Icon: React.FC
   width?: number
 }
 
@@ -203,14 +211,7 @@ const SwipeButton: React.FC<SwipeButtonProps> = ({
       ]}
       {...props}
     >
-      <SvgIcon
-        component={Icon}
-        style={{
-          height: 'inherit',
-          width: 'inherit',
-          ...style,
-        }}
-      />
+      <Icon />
     </IconButton>
   )
 }
@@ -219,8 +220,6 @@ type MatchDialogProps = DialogProps & {
   match?: Match
 }
 
-// let matchQueue = []
-
 const MatchDialog: React.FC<MatchDialogProps> = props => {
   const { match, ...dialogProps } = props
 
@@ -228,12 +227,12 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
     <Dialog {...dialogProps}>
       <Paper sx={{ p: 5 }}>
         <Typography variant='h6' gutterBottom>
-          {match?.business.name}
+          {match?.details.name}
         </Typography>
         <Box display='flex'>
           <Box display='flex'>
             <Chip
-              label={match?.business.price}
+              label={match?.details.price}
               size='small'
               color='primary'
               variant='filled'
@@ -241,97 +240,179 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
             />
           </Box>
           <div>
-            <Stars rating={match?.business.rating} />
+            <Stars rating={match?.details.rating} />
             <Typography variant='caption'>
-              {match?.business.reviews} Reviews
+              {match?.details.reviews} Reviews
             </Typography>
           </div>
         </Box>
-        <Typography variant='body2'>{match?.business.location}</Typography>
+        <Typography variant='body2'>{match?.details.location}</Typography>
         <Typography variant='body1' color='primary'>
-          {match?.business.categories}
+          {match?.details.categories}
         </Typography>
       </Paper>
     </Dialog>
   )
 }
 
-// const useGetMatches = (partyId: string) => {
-//   return useQuery<MatchByDate[]>(
-//     'matches',
-//     async () => {
-//       const data = (await usersService.getMatches(partyId)) || {}
-//       const matchesBydate = Object.keys(data)
-//         .map(k => data[k])
-//         .reduce<{ [dateString: string]: Business[] }>((acc, curr) => {
-//           const dateString = curr.createdAt.toDate().toDateString()
-//           if (!acc[dateString]) {
-//             acc[dateString] = []
-//           }
+const useToggleBusiness = (
+  businesses: UseQueryResult<BusinessesData, unknown>,
+  business?: Omit<Business, 'type'> | Match
+) => {
+  const [optimisticSave, setOptimisticSave] = React.useState<
+    'save' | 'block' | null
+  >(null)
+  const [trueSave, setTrueSave] = React.useState<'save' | 'block' | null>(null)
+  const [isDebouncing, setIsDebouncing] = React.useState(false)
+  const addBusiness = useAddBusiness()
+  const deleteBusiness = useDeleteBusiness()
 
-//           acc[dateString].push(curr)
-//           return acc
-//         }, {})
+  const businessRef = React.useRef<Omit<Business, 'type'> | Match>()
+  React.useEffect(() => {
+    businessRef.current = business
+  }, [business])
 
-//       return Object.keys(data)
-//         .map(k => data[k])
-//         .sort((a, b) => {
-//           if (a!.name < b!.name) {
-//             return -1
-//           }
-//           if (a!.name > b!.name) {
-//             return 1
-//           }
-//           return 0
-//         })
-//         .reduce<MatchByDate[]>((acc, curr) => {
-//           const dateString = curr.createdAt.toDate().toDateString()
-//           if (matchesBydate[dateString]) {
-//             acc.push({
-//               date: dateString,
-//               matches: matchesBydate[dateString],
-//             })
-//             delete matchesBydate[dateString]
-//           }
-//           return acc
-//         }, [])
-//     },
-//     {
-//       placeholderData: Array(1).fill({ matches: Array(6).fill(undefined) }),
-//       keepPreviousData: true,
-//     }
-//   )
-// }
+  const optimisticSaveRef = React.useRef<'save' | 'block' | null>()
+  React.useEffect(() => {
+    optimisticSaveRef.current = optimisticSave
+  }, [optimisticSave])
 
-const initalMatches = Array(1).fill({ matches: Array(6).fill(undefined) })
+  React.useEffect(() => {
+    if (business && businesses.data) {
+      const newSave =
+        [...businesses.data.saved, ...businesses.data.blocked].find(
+          ({ id }) => id === business.id
+        )?.type || null
+      optimisticSaveRef.current = newSave
+      setOptimisticSave(newSave)
+    }
+  }, [business, businesses])
+
+  const trueSaveRef = React.useRef<'save' | 'block' | null>(null)
+  React.useEffect(() => {
+    if (business && businesses.data) {
+      const newtrueSave =
+        [...businesses.data.saved, ...businesses.data.blocked].find(
+          ({ id }) => id === business.id
+        )?.type || null
+      trueSaveRef.current = newtrueSave
+      setTrueSave(newtrueSave)
+    }
+  }, [business, businesses])
+
+  const debouncedMutate = React.useCallback(
+    debounce((type: 'save' | 'block') => {
+      const isDiff = optimisticSaveRef.current !== trueSaveRef.current
+      console.log('debounced!', businessRef.current, isDiff)
+      if (businessRef.current && isDiff) {
+        if (
+          !trueSaveRef.current ||
+          (trueSaveRef.current && trueSaveRef.current !== type)
+        ) {
+          addBusiness.mutate({
+            id: businessRef.current.id,
+            type,
+            details: businessRef.current.details,
+          })
+        } else {
+          deleteBusiness.mutate({
+            id: businessRef.current.id,
+            type,
+            details: businessRef.current.details,
+          })
+        }
+      }
+
+      setIsDebouncing(false)
+    }, 5000),
+    []
+  )
+
+  const handleToggleSaveBusiness = React.useCallback(() => {
+    setIsDebouncing(true)
+    setOptimisticSave(prevSave => (prevSave !== 'save' ? 'save' : null))
+    debouncedMutate('save')
+  }, [debouncedMutate])
+
+  const cancelToggleSaveBusiness = React.useCallback(() => {
+    setIsDebouncing(false)
+    debouncedMutate.cancel()
+  }, [debouncedMutate])
+
+  const isLoading = addBusiness.isLoading || deleteBusiness.isLoading
+  const isOptimisticSave = isDebouncing || isLoading
+  const state = isOptimisticSave ? optimisticSave : trueSave
+  console.log(optimisticSave, trueSave, state)
+  return {
+    state,
+    optimisticSave,
+    setOptimisticSave,
+    trueSave,
+    setTrueSave,
+    cancelToggleSaveBusiness,
+    addBusiness,
+    deleteBusiness,
+    handleToggleSaveBusiness,
+  }
+}
+
+type MatchListItemProps = {
+  isLoading: boolean
+  match?: Match
+}
+
+const MatchListItem: React.FC<MatchListItemProps> = props => {
+  const { isLoading, match } = props
+  const businesses = useBusinesses()
+  const { state, handleToggleSaveBusiness } = useToggleBusiness(
+    businesses,
+    match
+  )
+
+  return (
+    <BusinessListItem
+      key={match?.id}
+      type={match?.type}
+      isLoading={isLoading || businesses.isLoading}
+      details={match?.details}
+      secondaryAction={
+        <SwipeButton
+          Icon={FavoriteIcon}
+          onClick={handleToggleSaveBusiness}
+          sx={{
+            height: 24,
+            width: 24,
+            mr: 2,
+            '& svg': {
+              color: state === 'save' ? 'black' : 'white',
+            },
+          }}
+        />
+      }
+    />
+  )
+}
 
 type MatchesByDate = { date: string; matches: Match[] }[]
 
 const Matches = ({ partyId }: { partyId: string }) => {
   const user = useUser()
-  const [matches, setMatches] = React.useState<MatchesByDate>(initalMatches)
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [liveMatches, setLiveMatches] = React.useState<Match[]>([])
   const [isOpen, setIsOpen] = React.useState(false)
-  const [matchQueue, setMatchQueue] = React.useState<Match[]>([])
-
-  const handleFadeEnd = React.useCallback(() => {
-    setMatchQueue(prevMatchQueue => {
-      const newMatchQueue = [...prevMatchQueue]
-      newMatchQueue.shift()
-      return newMatchQueue
-    })
-  }, [])
-
   const initialCall = React.useRef(true)
+  const queryClient = useQueryClient()
+  const matches = useQuery<MatchesByDate>(
+    'matches',
+    () => new Promise<MatchesByDate>(() => {}),
+    {
+      placeholderData: Array(1).fill({ matches: Array(6).fill(undefined) }),
+    }
+  )
 
   React.useEffect(() => {
-    if (!partyId) return
-
-    setIsLoading(true)
-
-    const matchesRef = usersService.collections.matches(partyId).ref
-    const matchesQuery = query(matchesRef, orderBy('createdAt', 'desc'))
-    const unsubscribe = usersService.onCollectionSnapshot(
+    const matchesCollection = PartiesService.collection.matches(partyId)
+    const matchesQuery = matchesCollection.orderBy('createdAt', 'desc').query()
+    const unsubscribe = PartiesService.onCollectionSnapshot(
       matchesQuery,
       snapshot => {
         const sortedMatches = snapshot.docs.reduce<MatchesByDate>(
@@ -357,25 +438,23 @@ const Matches = ({ partyId }: { partyId: string }) => {
           []
         )
 
-        setMatches(sortedMatches)
+        queryClient.setQueryData('matches', sortedMatches)
 
         if (!initialCall.current) {
+          initialCall.current = false
           snapshot.docChanges().forEach(change => {
-            if (change.doc.exists() && change.type === 'added') {
+            if (change.type === 'added') {
               const data = change.doc.data()
-              if (data.type === 'like' && data.last === user.uid) {
-                setMatchQueue(prevMatchQueue => [...prevMatchQueue, data])
+              if (data.type === 'like' && data.lastToSwipe === user.uid) {
+                setLiveMatches(prevMatches => [...prevMatches, data])
               }
 
               if (data.type === 'super-like') {
-                setMatchQueue(prevMatchQueue => [...prevMatchQueue, data])
+                setLiveMatches(prevMatches => [...prevMatches, data])
               }
             }
           })
         }
-
-        initialCall.current = false
-        setIsLoading(false)
       },
       error => {
         console.log(error)
@@ -383,22 +462,20 @@ const Matches = ({ partyId }: { partyId: string }) => {
     )
 
     return unsubscribe
-  }, [partyId, user.uid])
-
-  console.log(matchQueue)
+  }, [partyId, user.uid, queryClient])
 
   React.useEffect(() => {
-    if (!isOpen && matchQueue.length > 0) {
+    if (!isOpen && liveMatches.length > 0) {
       setIsOpen(true)
     }
-  }, [isOpen, matchQueue])
+  }, [isOpen, liveMatches])
 
   const handleClose = React.useCallback(() => {
     setIsOpen(false)
-    setMatchQueue(prevMatchQueue => {
-      const newMatchQueue = [...prevMatchQueue]
-      newMatchQueue.shift()
-      return newMatchQueue
+    setLiveMatches(prevLiveMatches => {
+      const newLiveMatches = [...prevLiveMatches]
+      newLiveMatches.shift()
+      return newLiveMatches
     })
   }, [])
 
@@ -412,33 +489,23 @@ const Matches = ({ partyId }: { partyId: string }) => {
       }}
     >
       <MatchDialog
-        open={isOpen && !!matchQueue[0]}
-        match={matchQueue[0]}
+        open={isOpen && !!liveMatches[0]}
+        match={liveMatches[0]}
         onClose={handleClose}
       />
       <Typography variant='h6' mb={2}>
         Matches
       </Typography>
-      <Box sx={{ ...(!isLoading && { overflowY: 'auto' }) }}>
-        {matches.map(({ date, matches }, index) => (
+      <Box sx={{ ...(!matches.isLoading && { overflowY: 'auto' }) }}>
+        {matches.data!.map((group, index) => (
           <Box key={index}>
-            <DividerText text={date} />
+            <DividerText text={group.date} />
             <List>
-              {matches.map((match, index) => (
-                <BusinessListItem
-                  key={match?.business.id || index}
-                  business={match?.business}
-                  secondaryAction={
-                    <SwipeButton
-                      Icon={FavoriteIcon}
-                      sx={{
-                        height: 24,
-                        width: 24,
-                        mr: 2,
-                        '& svg': { color: 'white' },
-                      }}
-                    />
-                  }
+              {group.matches.map((match, index) => (
+                <MatchListItem
+                  key={match?.id || index}
+                  isLoading={matches.isLoading}
+                  match={match}
                 />
               ))}
             </List>
@@ -501,23 +568,7 @@ const Card: React.FC<CardProps> = ({
       })}
     >
       <Box p={2}>
-        <Link
-          href={business.url}
-          target='_blank'
-          display='flex'
-          justifyContent='center'
-          alignItems='center'
-          ml='auto'
-          height={40}
-          width={40}
-          borderRadius='50%'
-          sx={theme => ({
-            background: theme.palette.primary.main,
-            color: theme.palette.background.paper,
-          })}
-        >
-          <OpenInNewIcon />
-        </Link>
+        <OpenInNewLink href={business.url} ml='auto' fontSize={24} />
       </Box>
       <Box py={2} px={4} sx={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}>
         <Grid container>
@@ -562,7 +613,7 @@ const useGetYelpBusinesses = (
   return useInfiniteQuery<YelpResponse>(
     ['cards'],
     async ({ pageParam = 0 }) => {
-      const data = await usersService.getYelpBusinesses({
+      const data = await PartiesService.getYelpBusinesses({
         ...params,
         offset: pageParam,
       })
@@ -583,46 +634,68 @@ const useGetYelpBusinesses = (
 }
 
 type ActionButtonsProps = {
-  userId: string
-  business?: YelpBusiness
+  businesses: UseQueryResult<BusinessesData, unknown>
+  currentYelpBusiness?: YelpBusiness
   animateCardSwipe: (action: SwipeAction) => void
-  isDisabled: boolean
 }
 
 const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
-  const { userId, business, animateCardSwipe, isDisabled } = props
+  const { businesses, currentYelpBusiness, animateCardSwipe } = props
 
-  const businessMutation = useMutation<
-    void,
-    unknown,
-    { type: 'save' | 'block'; business: YelpBusiness }
-  >(data =>
-    usersService.addBusiness(userId, {
-      type: data.type,
-      business: {
-        id: data.business.id,
-        image: data.business.image_url,
-        name: data.business.name,
-        price: data.business.price,
-        rating: data.business.rating,
-        categories: data.business.categories
+  const business = React.useMemo(() => {
+    if (!currentYelpBusiness) {
+      return undefined
+    }
+
+    return {
+      id: currentYelpBusiness.id,
+      details: {
+        image: currentYelpBusiness.image_url,
+        name: currentYelpBusiness.name,
+        price: currentYelpBusiness.price,
+        rating: currentYelpBusiness.rating,
+        categories: currentYelpBusiness.categories
           .map(({ title }) => title)
           .join(', '),
-        reviews: data.business.review_count,
-        location: `${data.business.location.city}, ${data.business.location.country}`,
-        url: data.business.url,
+        reviews: currentYelpBusiness.review_count,
+        location: `${currentYelpBusiness.location.city}, ${currentYelpBusiness.location.country}`,
+        url: currentYelpBusiness.url,
       },
-    })
-  )
-
-  const saveOrBlock = (type: 'save' | 'block') => {
-    if (business) {
-      businessMutation.mutate({
-        type,
-        business,
-      })
     }
-  }
+  }, [currentYelpBusiness])
+
+  const isDisabled = React.useMemo(() => !business, [business])
+
+  const {
+    state,
+    trueSave,
+    setTrueSave,
+    setOptimisticSave,
+    addBusiness,
+    handleToggleSaveBusiness,
+    cancelToggleSaveBusiness,
+  } = useToggleBusiness(businesses, business)
+
+  const dislikeAndBlock = React.useCallback(() => {
+    if (business) {
+      setOptimisticSave('block')
+      setTrueSave('block')
+      cancelToggleSaveBusiness()
+      addBusiness.mutate({
+        id: business.id,
+        type: 'block',
+        details: business.details,
+      })
+      animateCardSwipe('dislike')
+    }
+  }, [
+    business,
+    setOptimisticSave,
+    setTrueSave,
+    addBusiness,
+    cancelToggleSaveBusiness,
+    animateCardSwipe,
+  ])
 
   return (
     <Stack
@@ -636,17 +709,11 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
       right={0}
       bottom={-134}
     >
-      {/* <SwipeButton
-        Icon={UndoIcon}
-        width={35}
-        onClick={() => swipe('undo')}
-        disabled={isDisabled}
-      /> */}
       <SwipeButton
         Icon={BlockIcon}
-        width={52}
-        onClick={() => saveOrBlock('block')}
+        onClick={dislikeAndBlock}
         disabled={isDisabled}
+        sx={{ color: trueSave === 'block' ? 'black' : 'white' }}
       />
       <SwipeButton
         Icon={DislikeIcon}
@@ -655,7 +722,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
         disabled={isDisabled}
       />
       <SwipeButton
-        Icon={SuperlikeIcon}
+        Icon={SuperLikeIcon}
         width={65}
         onClick={() => animateCardSwipe('super-like')}
         disabled={isDisabled}
@@ -668,10 +735,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
       />
       <SwipeButton
         Icon={FavoriteIcon}
-        width={52}
-        onClick={() => saveOrBlock('save')}
+        onClick={handleToggleSaveBusiness}
         disabled={isDisabled}
-        sx={{ '& svg': { color: 'white' } }}
+        sx={{ color: state === 'save' ? 'black' : 'white' }}
       />
     </Stack>
   )
@@ -682,38 +748,28 @@ type InfiniteCardsProps = {
 }
 
 const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
-  const queryClient = useQueryClient()
   const user = useUser()
-
-  const [allCards, setAllCards] = React.useState<YelpBusiness[]>(() => {
-    const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
-    if (!data) {
-      return []
-    }
-
-    return data.pages
-      .flat()
-      .map(({ businesses }) => businesses)
-      .flat()
-  })
-
-  const [cards, setCards] = React.useState<YelpBusiness[]>(() => {
-    const data = allCards.slice(0, 3)
-    setAllCards(prev => prev.slice(3))
-    return data
-  })
-
-  const businesses = useGetYelpBusinesses(
+  const businesses = useBusinesses()
+  const yelpBusinesses = useGetYelpBusinesses(
     {
       ...party.location,
       ...party.params,
     },
     {
-      onSuccess(businesses) {
-        const pages = businesses.pages
+      enabled: !businesses.isLoading,
+      onSuccess(yelpBusinesses) {
+        const pages = yelpBusinesses.pages
         if (pages && pages.length > 0) {
           const lastPage = pages[pages.length - 1]
-          const newCards = lastPage.businesses
+          // Filter out any blocked businesses from last page
+          // of yelp businesses and add it to the cards lists
+          const newCards = lastPage.businesses.filter(yelpBusiness => {
+            return (
+              businesses.data!.blocked.findIndex(
+                business => business.id === yelpBusiness.id
+              ) === -1
+            )
+          })
 
           if (pages.length === 1 && cards.length === 0) {
             setCards(newCards.splice(0, 3))
@@ -725,6 +781,23 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
     }
   )
 
+  const [allCards, setAllCards] = React.useState<YelpBusiness[]>(() => {
+    if (!yelpBusinesses.data) {
+      return []
+    }
+
+    return yelpBusinesses.data.pages
+      .flat()
+      .map(({ businesses }) => businesses)
+      .flat()
+  })
+
+  const [cards, setCards] = React.useState<YelpBusiness[]>(() => {
+    const initialCards = allCards.slice(0, 3)
+    setAllCards(prevAllCards => prevAllCards.slice(3))
+    return initialCards
+  })
+
   const swipeMutation = useMutation<
     void,
     unknown,
@@ -733,30 +806,20 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
     usersService.swipe(party.id, data.business.id, user.uid, data.action)
   )
 
-  const currentBusiness = React.useMemo<YelpBusiness | undefined>(
-    () => cards[cards.length - 1],
-    [cards]
-  )
-
-  const swipe = React.useCallback(
-    (action: SwipeAction) => {
-      if (currentBusiness) {
+  const handleSwipe = React.useCallback(
+    (action: SwipeAction, business?: YelpBusiness) => {
+      if (business) {
         swipeMutation.mutate({
           action,
-          business: currentBusiness,
+          business,
         })
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentBusiness]
+    [swipeMutation]
   )
 
-  const isDisabled = React.useMemo(
-    () => !currentBusiness?.id || swipeMutation.isLoading,
-    [currentBusiness?.id, swipeMutation.isLoading]
-  )
-
-  const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
+  const { data, isFetchingNextPage, fetchNextPage, hasNextPage } =
+    yelpBusinesses
 
   React.useEffect(() => {
     const pageNum = data ? data.pages.length : 0
@@ -808,7 +871,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
 
   const animateCardSwipe = React.useCallback(
     (action: SwipeAction) => {
-      swipe(action)
+      handleSwipe(action, cards[cards.length - 1])
 
       if (action === 'like') {
         setDragStart({ ...dragStart, animation: { x: 800, y: 0 } })
@@ -828,7 +891,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         setAllCards(allCards.slice(1))
       }, 200)
     },
-    [swipe, dragStart, x, y, allCards, cards]
+    [handleSwipe, dragStart, x, y, allCards, cards]
   )
 
   const onDragEnd = React.useCallback(
@@ -879,51 +942,32 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         alignItems='center'
         overflow='hidden'
       >
-        {businesses.isLoading ? (
+        {yelpBusinesses.isLoading ? (
           <Skeleton variant='rectangular' width='100%' height='100%' />
         ) : (
           renderCards()
         )}
       </Box>
       <ActionButtons
-        userId={user.uid}
-        business={currentBusiness}
+        businesses={businesses}
+        currentYelpBusiness={cards[cards.length - 1]}
         animateCardSwipe={animateCardSwipe}
-        isDisabled={isDisabled}
       />
     </div>
   )
 }
 
-const PartyView = () => {
-  const { partyId } = useParams()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const parties = useParties()
+type PartyActionsAreaProps = {
+  party: PopulatedParty
+  setParty: React.Dispatch<React.SetStateAction<PopulatedParty | undefined>>
+}
 
-  const [party, setParty] = React.useState<PopulatedParty | undefined>(() => {
-    const locationState = (location.state as { party?: PopulatedParty }) || {}
-    return locationState.party ? locationState.party : undefined
-  })
+const PartyActionsArea: React.FC<PartyActionsAreaProps> = props => {
+  const { party, setParty } = props
 
   React.useEffect(() => {
-    if (!party) {
-      return
-    }
-
-    navigate(`/party/${party.id}`, {
-      state: { party },
-      replace: true,
-    })
-  }, [party, navigate])
-
-  React.useEffect(() => {
-    if (!party?.id) {
-      return
-    }
-
-    const partyRef = usersService.docs.party(party.id).ref
-    usersService.onDocumentSnapshot(
+    const partyRef = PartiesService.doc.party(party.id)
+    PartiesService.onDocumentSnapshot(
       partyRef,
       snapshot => {
         const data = snapshot.data()
@@ -938,16 +982,69 @@ const PartyView = () => {
         console.log(error)
       }
     )
-  }, [party?.id])
+  }, [party.id, setParty])
 
-  const handleUpdatePartySettings = React.useCallback(
-    (updatedParty: PopulatedParty) => {
+  const updateParty = React.useCallback(
+    (updatedParty: React.SetStateAction<PopulatedParty | undefined>) => {
       setParty(updatedParty)
     },
-    []
+    [setParty]
   )
 
-  if (!partyId || !party || !parties[partyId]) {
+  return (
+    <>
+      <Paper
+        sx={{
+          p: 4,
+          height: 'calc(100% - 100px)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Box display='flex' justifyContent='space-between'>
+          <Typography variant='h6' gutterBottom>
+            {party.name}
+          </Typography>
+          <PartyOptionsPopper
+            party={party}
+            handleUpdatePartySettings={updateParty}
+          />
+        </Box>
+        <Members members={party.members} />
+        <InfiniteCards party={party} />
+      </Paper>
+      <Box
+        height={100}
+        display='flex'
+        justifyContent='center'
+        alignItems='center'
+      ></Box>
+    </>
+  )
+}
+
+const PartyView = () => {
+  const { partyId } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const [party, setParty] = React.useState<PopulatedParty | undefined>(() => {
+    const locationState = (location.state as { party?: PopulatedParty }) || {}
+    return locationState?.party
+  })
+
+  React.useEffect(() => {
+    if (!party) {
+      return
+    }
+
+    navigate(`/party/${party.id}`, {
+      state: { party },
+      replace: true,
+    })
+  }, [party, navigate])
+
+  if (!partyId || !party) {
     return <Navigate to='/dashboard' replace />
   }
 
@@ -955,37 +1052,12 @@ const PartyView = () => {
     <Grid container columnSpacing={4} height='100%'>
       <Grid item xs={12} lg={8} height='100%'>
         <Box height='100%'>
-          <Paper
-            sx={{
-              p: 4,
-              height: 'calc(100% - 100px)',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <Box display='flex' justifyContent='space-between'>
-              <Typography variant='h6' gutterBottom>
-                {party!.name}
-              </Typography>
-              <PartyOptionsPopper
-                party={party!}
-                handleUpdatePartySettings={handleUpdatePartySettings}
-              />
-            </Box>
-            <Members members={party.members} />
-            <InfiniteCards party={party!} />
-          </Paper>
-          <Box
-            height={100}
-            display='flex'
-            justifyContent='center'
-            alignItems='center'
-          ></Box>
+          <PartyActionsArea party={party} setParty={setParty} />
         </Box>
       </Grid>
       <Hidden lgDown>
         <Grid item xs={12} lg height='100%'>
-          <Matches partyId={partyId!} />
+          <Matches partyId={partyId} />
         </Grid>
       </Hidden>
     </Grid>
@@ -993,509 +1065,3 @@ const PartyView = () => {
 }
 
 export default PartyView
-
-// React.useEffect(() => {
-//   const swipesRef = usersService.collections.swipes(party.id).ref
-//   const unsubscribe = usersService.onCollectionSnapshot(
-//     swipesRef,
-//     snapshot => {
-//       console.log('snapshot', snapshot)
-//       setSwipesMap(prevSwipesMap => {
-//         const oldSwipesMap = { ...prevSwipesMap }
-//         const newSwipesMap = snapshot.docs.reduce<{
-//           [yelpId: string]: Swipes
-//         }>((docs, doc) => {
-//           const data = doc.data()
-//           if (!data) {
-//             delete oldSwipesMap[doc.id]
-//             return docs
-//           }
-
-//           docs[doc.id] = data
-//           return docs
-//         }, {})
-
-//         console.log('Swipes Map', newSwipesMap)
-
-//         const swipes = swipesMap[business.id]
-//       console.log(`Swipes for "${business.name} - ${business.id}"`, swipes)
-
-//       if (swipes) {
-//         if (action === 'like') {
-//           const isLikeMatch = party.members.every(member => {
-//             return (
-//               member.uid === user.uid || swipes[member.uid]?.action === 'like'
-//             )
-//           })
-
-//           if (isLikeMatch) {
-//             console.log('Like match!')
-//             const lastUserToMatch = Object.keys(swipes).reduce((a, b) =>
-//               swipes[a].timestamp.nanoseconds > swipes[b].timestamp.nanoseconds
-//                 ? a
-//                 : b
-//             )
-
-//             setMatchQueue(prevMatchQueue => [
-//               ...prevMatchQueue,
-//               {
-//                 type: 'like',
-//                 business,
-//               },
-//             ])
-
-//             if (user.uid === lastUserToMatch) {
-//               console.log('You were the last user to match!')
-//               setMatchQueue(prevMatchQueue => [
-//                 ...prevMatchQueue,
-//                 {
-//                   type: 'like',
-//                   business,
-//                 },
-//               ])
-//             }
-//           }
-//         }
-
-//         if (action === 'super-like') {
-//           const isSuperLikeMatch = party.members.every(member => {
-//             return (
-//               member.uid === user.uid ||
-//               swipes[member.uid]?.action === 'super-like'
-//             )
-//           })
-
-//           if (isSuperLikeMatch) {
-//             console.log('Super-like match!')
-//             setMatchQueue(prevMatchQueue => [
-//               ...prevMatchQueue,
-//               {
-//                 type: 'like',
-//                 business,
-//               },
-//             ])
-//           }
-//         }
-//       }
-
-//         return {
-//           ...oldSwipesMap,
-//           ...newSwipesMap,
-//         }
-//       })
-//     },
-//     error => {
-//       console.log(error)
-//     }
-//   )
-
-//   return unsubscribe
-// }, [party.id, user.uid])
-
-// const max = 2
-
-// type CardsState = {
-//   all: YelpBusiness[]
-//   current: YelpBusiness[]
-// }
-
-// type CardsProps = {
-//   cards: YelpBusiness[]
-//   onDirectionLock: (axis: 'x' | 'y' | null) => void
-//   onDragEnd: (info: any) => void
-//   x: MotionValue<number>
-//   y: MotionValue<number>
-//   dragStart: {
-//     axis: 'x' | 'y' | null
-//     animation: {
-//       x: number
-//       y: number
-//     }
-//   }
-//   scale: MotionValue<number>
-//   boxShadow: MotionValue<string>
-// }
-
-// const Cards = React.memo<CardsProps>(props => {
-//   const {
-//     cards,
-//     x,
-//     y,
-//     onDirectionLock,
-//     onDragEnd,
-//     dragStart,
-//     scale,
-//     boxShadow,
-//   } = props
-//   return (
-//     <Box
-//       height='100%'
-//       maxHeight={600}
-//       position='relative'
-//       display='flex'
-//       justifyContent='center'
-//       alignItems='center'
-//       overflow='hidden'
-//       p={3}
-//     >
-//       {cards.map((business, index) =>
-//         index === cards.length - 1 ? (
-//           <Card
-//             key={business.id || index}
-//             business={business}
-//             style={{ x, y, zIndex: index }}
-//             onDirectionLock={axis => onDirectionLock(axis)}
-//             onDragEnd={(e, info) => onDragEnd(info)}
-//             animate={dragStart.animation}
-//           />
-//         ) : (
-//           <Card
-//             key={business.id || index}
-//             business={business}
-//             style={{
-//               scale,
-//               boxShadow,
-//               zIndex: index,
-//             }}
-//           />
-//         )
-//       )}
-//     </Box>
-//   )
-// })
-
-// type CardsState = {
-//   all: YelpBusiness[]
-//   current: YelpBusiness[]
-// }
-
-// type InfiniteCardsProps = {
-//   options: Partial<Party['settings']>
-// }
-
-// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
-//   const queryClient = useQueryClient()
-
-//   const [cardsState, setCardsState] = React.useState<CardsState>(() => {
-//     const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
-//     const state: CardsState = {
-//       all: [],
-//       current: [],
-//     }
-
-//     if (!data) {
-//       return state
-//     }
-
-//     state.all = data.pages
-//       .flat()
-//       .map(({ businesses }) => businesses)
-//       .flat()
-
-//     state.current = state.all.splice(0, 3)
-
-//     return state
-//   })
-
-//   const businesses = useGetBusinesses(options, {
-//     onSuccess(businesses) {
-//       const pages = businesses.pages
-//       if (pages && pages.length > 0) {
-//         const lastPage = pages[pages.length - 1]
-//         setCardsState(prev => ({
-//           ...prev,
-//           all: [...prev.all, ...lastPage.businesses],
-//         }))
-//       }
-//     },
-//   })
-
-//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
-
-//   React.useEffect(() => {
-//     const { all, current } = cardsState
-//     const max = 3
-
-//     if (all.length > 0 && current.length < max) {
-//       setCardsState(prev => {
-//         return {
-//           all: prev.all.slice(max),
-//           current: [...prev.all.slice(0, max), ...prev.current],
-//         }
-//       })
-//     }
-//   }, [cardsState])
-
-//   React.useEffect(() => {
-//     const pageNum = data ? data.pages.length : 0
-//     if (cardsState.all.length < 20 && hasNextPage && !isFetchingNextPage) {
-//       fetchNextPage({
-//         pageParam: pageNum * 20,
-//       })
-//     }
-//   }, [cardsState.all, data, hasNextPage, isFetchingNextPage, fetchNextPage])
-
-//   const [dragStart, setDragStart] = React.useState<{
-//     axis: 'x' | 'y' | null
-//     animation: {
-//       x: number
-//       y: number
-//     }
-//   }>({
-//     axis: null,
-//     animation: { x: 0, y: 0 },
-//   })
-
-//   const x = useMotionValue(0)
-//   const y = useMotionValue(0)
-
-//   const scale = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [1, 0.5, 1]
-//   )
-
-//   const shadowBlur = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [0, 25, 0]
-//   )
-
-//   const shadowOpacity = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [0, 0.2, 0]
-//   )
-
-//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
-
-//   const onDirectionLock = React.useCallback(
-//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
-//     [dragStart, setDragStart]
-//   )
-
-//   const animateCardSwipe = React.useCallback(
-//     (animation: { x: number; y: number }) => {
-//       setDragStart({ ...dragStart, animation })
-
-//       setTimeout(() => {
-//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
-
-//         x.set(0)
-//         y.set(0)
-
-//         setCardsState(prev => ({
-//           ...prev,
-//           current: [...prev.current.slice(0, prev.current.length - 1)],
-//         }))
-//       }, 200)
-//     },
-//     [dragStart, x, y]
-//   )
-
-//   const onDragEnd = React.useCallback(
-//     (info: any) => {
-//       if (dragStart.axis === 'x') {
-//         if (info.offset.x >= 300) animateCardSwipe({ x: 800, y: 0 })
-//         else if (info.offset.x <= -300) animateCardSwipe({ x: -800, y: 0 })
-//       } else {
-//         if (info.offset.y >= 300) animateCardSwipe({ x: 0, y: 800 })
-//         else if (info.offset.y <= -300) animateCardSwipe({ x: 0, y: -800 })
-//       }
-//     },
-//     [dragStart, animateCardSwipe]
-//   )
-
-//   return (
-//     <Cards
-//       cards={cardsState.current}
-//       x={x}
-//       y={y}
-//       dragStart={dragStart}
-//       onDirectionLock={onDirectionLock}
-//       onDragEnd={onDragEnd}
-//       scale={scale}
-//       boxShadow={boxShadow}
-//     />
-//   )
-// }
-
-// const Cards = React.memo<{
-//   cards: YelpBusiness[]
-//   setCardsState: React.Dispatch<React.SetStateAction<CardsState>>
-// }>(({ cards, setCardsState }) => {
-//   const [dragStart, setDragStart] = React.useState<{
-//     axis: 'x' | 'y' | null
-//     animation: {
-//       x: number
-//       y: number
-//     }
-//   }>({
-//     axis: null,
-//     animation: { x: 0, y: 0 },
-//   })
-
-//   const x = useMotionValue(0)
-//   const y = useMotionValue(0)
-
-//   const scale = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [1, 0.5, 1]
-//   )
-
-//   const shadowBlur = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [0, 25, 0]
-//   )
-
-//   const shadowOpacity = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [0, 0.2, 0]
-//   )
-
-//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
-
-//   const onDirectionLock = React.useCallback(
-//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
-//     [dragStart, setDragStart]
-//   )
-
-//   const animateCardSwipe = React.useCallback(
-//     (animation: { x: number; y: number }) => {
-//       setDragStart({ ...dragStart, animation })
-
-//       setTimeout(() => {
-//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
-
-//         x.set(0)
-//         y.set(0)
-
-//         setCardsState(prev => ({
-//           ...prev,
-//           current: [...prev.current.slice(0, prev.current.length - 1)],
-//         }))
-//       }, 200)
-//     },
-//     [dragStart, x, y, setCardsState]
-//   )
-
-//   const onDragEnd = React.useCallback(
-//     (info: any) => {
-//       if (dragStart.axis === 'x') {
-//         if (info.offset.x >= 300) animateCardSwipe({ x: 800, y: 0 })
-//         else if (info.offset.x <= -300) animateCardSwipe({ x: -800, y: 0 })
-//       } else {
-//         if (info.offset.y >= 300) animateCardSwipe({ x: 0, y: 800 })
-//         else if (info.offset.y <= -300) animateCardSwipe({ x: 0, y: -800 })
-//       }
-//     },
-//     [dragStart, animateCardSwipe]
-//   )
-
-//   const renderCards = () => {
-//     return cards.map((business, index) =>
-//       index === cards.length - 1 ? (
-//         <Card
-//           key={business.id || index}
-//           business={business}
-//           style={{ x, y, zIndex: index }}
-//           onDirectionLock={axis => onDirectionLock(axis)}
-//           onDragEnd={(e, info) => onDragEnd(info)}
-//           animate={dragStart.animation}
-//         />
-//       ) : (
-//         <Card
-//           key={business.id || index}
-//           business={business}
-//           style={{
-//             scale,
-//             boxShadow,
-//             zIndex: index,
-//           }}
-//         />
-//       )
-//     )
-//   }
-
-//   return (
-//     <Box
-//       height='100%'
-//       maxHeight={600}
-//       position='relative'
-//       display='flex'
-//       justifyContent='center'
-//       alignItems='center'
-//       overflow='hidden'
-//       p={3}
-//     >
-//       {renderCards()}
-//     </Box>
-//   )
-// })
-
-// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
-//   const queryClient = useQueryClient()
-
-//   const [cardsState, setCardsState] = React.useState<CardsState>(() => {
-//     const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
-//     const state: CardsState = {
-//       all: [],
-//       current: [],
-//     }
-
-//     if (!data) {
-//       return state
-//     }
-
-//     state.all = data.pages
-//       .flat()
-//       .map(({ businesses }) => businesses)
-//       .flat()
-
-//     state.current = state.all.splice(0, max)
-
-//     return state
-//   })
-
-//   const businesses = useGetBusinesses(options, {
-//     onSuccess(businesses) {
-//       const pages = businesses.pages
-//       if (pages && pages.length > 0) {
-//         const lastPage = pages[pages.length - 1]
-//         setCardsState(prev => ({
-//           ...prev,
-//           all: [...prev.all, ...lastPage.businesses],
-//         }))
-//       }
-//     },
-//   })
-
-//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
-
-//   React.useEffect(() => {
-//     const { all, current } = cardsState
-
-//     if (all.length > 0 && current.length < max) {
-//       setCardsState(prev => {
-//         return {
-//           all: prev.all.slice(max),
-//           current: [...prev.all.slice(0, max), ...prev.current],
-//         }
-//       })
-//     }
-//   }, [cardsState])
-
-//   React.useEffect(() => {
-//     const pageNum = data ? data.pages.length : 0
-//     if (cardsState.all.length < 20 && hasNextPage && !isFetchingNextPage) {
-//       fetchNextPage({
-//         pageParam: pageNum * 20,
-//       })
-//     }
-//   }, [cardsState.all, data, hasNextPage, isFetchingNextPage, fetchNextPage])
-
-//   return <Cards cards={cardsState.current} setCardsState={setCardsState} />
-// }

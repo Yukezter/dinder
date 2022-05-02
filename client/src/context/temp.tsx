@@ -1,3 +1,509 @@
+// React.useEffect(() => {
+//   const swipesRef = usersService.collections.swipes(party.id).ref
+//   const unsubscribe = usersService.onCollectionSnapshot(
+//     swipesRef,
+//     snapshot => {
+//       console.log('snapshot', snapshot)
+//       setSwipesMap(prevSwipesMap => {
+//         const oldSwipesMap = { ...prevSwipesMap }
+//         const newSwipesMap = snapshot.docs.reduce<{
+//           [yelpId: string]: Swipes
+//         }>((docs, doc) => {
+//           const data = doc.data()
+//           if (!data) {
+//             delete oldSwipesMap[doc.id]
+//             return docs
+//           }
+
+//           docs[doc.id] = data
+//           return docs
+//         }, {})
+
+//         console.log('Swipes Map', newSwipesMap)
+
+//         const swipes = swipesMap[business.id]
+//       console.log(`Swipes for "${business.name} - ${business.id}"`, swipes)
+
+//       if (swipes) {
+//         if (action === 'like') {
+//           const isLikeMatch = party.members.every(member => {
+//             return (
+//               member.uid === user.uid || swipes[member.uid]?.action === 'like'
+//             )
+//           })
+
+//           if (isLikeMatch) {
+//             console.log('Like match!')
+//             const lastUserToMatch = Object.keys(swipes).reduce((a, b) =>
+//               swipes[a].timestamp.nanoseconds > swipes[b].timestamp.nanoseconds
+//                 ? a
+//                 : b
+//             )
+
+//             setMatchQueue(prevMatchQueue => [
+//               ...prevMatchQueue,
+//               {
+//                 type: 'like',
+//                 business,
+//               },
+//             ])
+
+//             if (user.uid === lastUserToMatch) {
+//               console.log('You were the last user to match!')
+//               setMatchQueue(prevMatchQueue => [
+//                 ...prevMatchQueue,
+//                 {
+//                   type: 'like',
+//                   business,
+//                 },
+//               ])
+//             }
+//           }
+//         }
+
+//         if (action === 'super-like') {
+//           const isSuperLikeMatch = party.members.every(member => {
+//             return (
+//               member.uid === user.uid ||
+//               swipes[member.uid]?.action === 'super-like'
+//             )
+//           })
+
+//           if (isSuperLikeMatch) {
+//             console.log('Super-like match!')
+//             setMatchQueue(prevMatchQueue => [
+//               ...prevMatchQueue,
+//               {
+//                 type: 'like',
+//                 business,
+//               },
+//             ])
+//           }
+//         }
+//       }
+
+//         return {
+//           ...oldSwipesMap,
+//           ...newSwipesMap,
+//         }
+//       })
+//     },
+//     error => {
+//       console.log(error)
+//     }
+//   )
+
+//   return unsubscribe
+// }, [party.id, user.uid])
+
+// const max = 2
+
+// type CardsState = {
+//   all: YelpBusiness[]
+//   current: YelpBusiness[]
+// }
+
+// type CardsProps = {
+//   cards: YelpBusiness[]
+//   onDirectionLock: (axis: 'x' | 'y' | null) => void
+//   onDragEnd: (info: any) => void
+//   x: MotionValue<number>
+//   y: MotionValue<number>
+//   dragStart: {
+//     axis: 'x' | 'y' | null
+//     animation: {
+//       x: number
+//       y: number
+//     }
+//   }
+//   scale: MotionValue<number>
+//   boxShadow: MotionValue<string>
+// }
+
+// const Cards = React.memo<CardsProps>(props => {
+//   const {
+//     cards,
+//     x,
+//     y,
+//     onDirectionLock,
+//     onDragEnd,
+//     dragStart,
+//     scale,
+//     boxShadow,
+//   } = props
+//   return (
+//     <Box
+//       height='100%'
+//       maxHeight={600}
+//       position='relative'
+//       display='flex'
+//       justifyContent='center'
+//       alignItems='center'
+//       overflow='hidden'
+//       p={3}
+//     >
+//       {cards.map((business, index) =>
+//         index === cards.length - 1 ? (
+//           <Card
+//             key={business.id || index}
+//             business={business}
+//             style={{ x, y, zIndex: index }}
+//             onDirectionLock={axis => onDirectionLock(axis)}
+//             onDragEnd={(e, info) => onDragEnd(info)}
+//             animate={dragStart.animation}
+//           />
+//         ) : (
+//           <Card
+//             key={business.id || index}
+//             business={business}
+//             style={{
+//               scale,
+//               boxShadow,
+//               zIndex: index,
+//             }}
+//           />
+//         )
+//       )}
+//     </Box>
+//   )
+// })
+
+// type CardsState = {
+//   all: YelpBusiness[]
+//   current: YelpBusiness[]
+// }
+
+// type InfiniteCardsProps = {
+//   options: Partial<Party['settings']>
+// }
+
+// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
+//   const queryClient = useQueryClient()
+
+//   const [cardsState, setCardsState] = React.useState<CardsState>(() => {
+//     const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
+//     const state: CardsState = {
+//       all: [],
+//       current: [],
+//     }
+
+//     if (!data) {
+//       return state
+//     }
+
+//     state.all = data.pages
+//       .flat()
+//       .map(({ businesses }) => businesses)
+//       .flat()
+
+//     state.current = state.all.splice(0, 3)
+
+//     return state
+//   })
+
+//   const businesses = useGetBusinesses(options, {
+//     onSuccess(businesses) {
+//       const pages = businesses.pages
+//       if (pages && pages.length > 0) {
+//         const lastPage = pages[pages.length - 1]
+//         setCardsState(prev => ({
+//           ...prev,
+//           all: [...prev.all, ...lastPage.businesses],
+//         }))
+//       }
+//     },
+//   })
+
+//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
+
+//   React.useEffect(() => {
+//     const { all, current } = cardsState
+//     const max = 3
+
+//     if (all.length > 0 && current.length < max) {
+//       setCardsState(prev => {
+//         return {
+//           all: prev.all.slice(max),
+//           current: [...prev.all.slice(0, max), ...prev.current],
+//         }
+//       })
+//     }
+//   }, [cardsState])
+
+//   React.useEffect(() => {
+//     const pageNum = data ? data.pages.length : 0
+//     if (cardsState.all.length < 20 && hasNextPage && !isFetchingNextPage) {
+//       fetchNextPage({
+//         pageParam: pageNum * 20,
+//       })
+//     }
+//   }, [cardsState.all, data, hasNextPage, isFetchingNextPage, fetchNextPage])
+
+//   const [dragStart, setDragStart] = React.useState<{
+//     axis: 'x' | 'y' | null
+//     animation: {
+//       x: number
+//       y: number
+//     }
+//   }>({
+//     axis: null,
+//     animation: { x: 0, y: 0 },
+//   })
+
+//   const x = useMotionValue(0)
+//   const y = useMotionValue(0)
+
+//   const scale = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [1, 0.5, 1]
+//   )
+
+//   const shadowBlur = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 25, 0]
+//   )
+
+//   const shadowOpacity = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 0.2, 0]
+//   )
+
+//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
+
+//   const onDirectionLock = React.useCallback(
+//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
+//     [dragStart, setDragStart]
+//   )
+
+//   const animateCardSwipe = React.useCallback(
+//     (animation: { x: number; y: number }) => {
+//       setDragStart({ ...dragStart, animation })
+
+//       setTimeout(() => {
+//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
+
+//         x.set(0)
+//         y.set(0)
+
+//         setCardsState(prev => ({
+//           ...prev,
+//           current: [...prev.current.slice(0, prev.current.length - 1)],
+//         }))
+//       }, 200)
+//     },
+//     [dragStart, x, y]
+//   )
+
+//   const onDragEnd = React.useCallback(
+//     (info: any) => {
+//       if (dragStart.axis === 'x') {
+//         if (info.offset.x >= 300) animateCardSwipe({ x: 800, y: 0 })
+//         else if (info.offset.x <= -300) animateCardSwipe({ x: -800, y: 0 })
+//       } else {
+//         if (info.offset.y >= 300) animateCardSwipe({ x: 0, y: 800 })
+//         else if (info.offset.y <= -300) animateCardSwipe({ x: 0, y: -800 })
+//       }
+//     },
+//     [dragStart, animateCardSwipe]
+//   )
+
+//   return (
+//     <Cards
+//       cards={cardsState.current}
+//       x={x}
+//       y={y}
+//       dragStart={dragStart}
+//       onDirectionLock={onDirectionLock}
+//       onDragEnd={onDragEnd}
+//       scale={scale}
+//       boxShadow={boxShadow}
+//     />
+//   )
+// }
+
+// const Cards = React.memo<{
+//   cards: YelpBusiness[]
+//   setCardsState: React.Dispatch<React.SetStateAction<CardsState>>
+// }>(({ cards, setCardsState }) => {
+//   const [dragStart, setDragStart] = React.useState<{
+//     axis: 'x' | 'y' | null
+//     animation: {
+//       x: number
+//       y: number
+//     }
+//   }>({
+//     axis: null,
+//     animation: { x: 0, y: 0 },
+//   })
+
+//   const x = useMotionValue(0)
+//   const y = useMotionValue(0)
+
+//   const scale = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [1, 0.5, 1]
+//   )
+
+//   const shadowBlur = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 25, 0]
+//   )
+
+//   const shadowOpacity = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 0.2, 0]
+//   )
+
+//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
+
+//   const onDirectionLock = React.useCallback(
+//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
+//     [dragStart, setDragStart]
+//   )
+
+//   const animateCardSwipe = React.useCallback(
+//     (animation: { x: number; y: number }) => {
+//       setDragStart({ ...dragStart, animation })
+
+//       setTimeout(() => {
+//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
+
+//         x.set(0)
+//         y.set(0)
+
+//         setCardsState(prev => ({
+//           ...prev,
+//           current: [...prev.current.slice(0, prev.current.length - 1)],
+//         }))
+//       }, 200)
+//     },
+//     [dragStart, x, y, setCardsState]
+//   )
+
+//   const onDragEnd = React.useCallback(
+//     (info: any) => {
+//       if (dragStart.axis === 'x') {
+//         if (info.offset.x >= 300) animateCardSwipe({ x: 800, y: 0 })
+//         else if (info.offset.x <= -300) animateCardSwipe({ x: -800, y: 0 })
+//       } else {
+//         if (info.offset.y >= 300) animateCardSwipe({ x: 0, y: 800 })
+//         else if (info.offset.y <= -300) animateCardSwipe({ x: 0, y: -800 })
+//       }
+//     },
+//     [dragStart, animateCardSwipe]
+//   )
+
+//   const renderCards = () => {
+//     return cards.map((business, index) =>
+//       index === cards.length - 1 ? (
+//         <Card
+//           key={business.id || index}
+//           business={business}
+//           style={{ x, y, zIndex: index }}
+//           onDirectionLock={axis => onDirectionLock(axis)}
+//           onDragEnd={(e, info) => onDragEnd(info)}
+//           animate={dragStart.animation}
+//         />
+//       ) : (
+//         <Card
+//           key={business.id || index}
+//           business={business}
+//           style={{
+//             scale,
+//             boxShadow,
+//             zIndex: index,
+//           }}
+//         />
+//       )
+//     )
+//   }
+
+//   return (
+//     <Box
+//       height='100%'
+//       maxHeight={600}
+//       position='relative'
+//       display='flex'
+//       justifyContent='center'
+//       alignItems='center'
+//       overflow='hidden'
+//       p={3}
+//     >
+//       {renderCards()}
+//     </Box>
+//   )
+// })
+
+// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ options }) => {
+//   const queryClient = useQueryClient()
+
+//   const [cardsState, setCardsState] = React.useState<CardsState>(() => {
+//     const data = queryClient.getQueryData<{ pages: YelpResponse[][] }>('cards')
+//     const state: CardsState = {
+//       all: [],
+//       current: [],
+//     }
+
+//     if (!data) {
+//       return state
+//     }
+
+//     state.all = data.pages
+//       .flat()
+//       .map(({ businesses }) => businesses)
+//       .flat()
+
+//     state.current = state.all.splice(0, max)
+
+//     return state
+//   })
+
+//   const businesses = useGetBusinesses(options, {
+//     onSuccess(businesses) {
+//       const pages = businesses.pages
+//       if (pages && pages.length > 0) {
+//         const lastPage = pages[pages.length - 1]
+//         setCardsState(prev => ({
+//           ...prev,
+//           all: [...prev.all, ...lastPage.businesses],
+//         }))
+//       }
+//     },
+//   })
+
+//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } = businesses
+
+//   React.useEffect(() => {
+//     const { all, current } = cardsState
+
+//     if (all.length > 0 && current.length < max) {
+//       setCardsState(prev => {
+//         return {
+//           all: prev.all.slice(max),
+//           current: [...prev.all.slice(0, max), ...prev.current],
+//         }
+//       })
+//     }
+//   }, [cardsState])
+
+//   React.useEffect(() => {
+//     const pageNum = data ? data.pages.length : 0
+//     if (cardsState.all.length < 20 && hasNextPage && !isFetchingNextPage) {
+//       fetchNextPage({
+//         pageParam: pageNum * 20,
+//       })
+//     }
+//   }, [cardsState.all, data, hasNextPage, isFetchingNextPage, fetchNextPage])
+
+//   return <Cards cards={cardsState.current} setCardsState={setCardsState} />
+// }
+
 // import React from 'react'
 // import { onAuthStateChanged } from 'firebase/auth'
 // import { Unsubscribe, Timestamp, FirestoreError } from 'firebase/firestore'

@@ -6,15 +6,22 @@ import ListItemText from '@mui/material/ListItemText'
 import ListItemAvatar from '@mui/material/ListItemAvatar'
 import Skeleton from '@mui/material/Skeleton'
 
-import { Business } from '../context/FirestoreContext'
-import { Avatar, Stars } from '../common/components'
+import { Business, Match } from '../context/FirestoreContext'
+import { Avatar, Stars, OpenInNewLink } from '../common/components'
+import LikeIcon from '../common/icons/Like'
+import SuperLikeIcon from '../common/icons/SuperLike'
 
 interface BusinessListItemProps extends ListItemProps {
-  business?: Business['business']
+  isLoading?: boolean
+  type?: Business['type'] | Match['type']
+  details?: Business['details']
 }
 
 const BusinessListItem: React.FC<BusinessListItemProps> = ({
-  business,
+  isLoading,
+  type,
+  details,
+  // secondaryAction,
   sx = [],
   ...props
 }) => {
@@ -31,15 +38,44 @@ const BusinessListItem: React.FC<BusinessListItemProps> = ({
         },
         ...(Array.isArray(sx) ? sx : [sx]),
       ]}
+      // secondaryAction={!isLoading && details && secondaryAction}
       {...props}
     >
       <ListItemAvatar sx={{ mr: { xs: 1, sm: 3, lg: 1 } }}>
-        {!business ? (
+        {isLoading || !details ? (
           <Skeleton variant='rectangular'>
             <Avatar variant='square' size={80} />
           </Skeleton>
         ) : (
-          <Avatar src={business.image} variant='square' size={80} />
+          <div style={{ position: 'relative' }}>
+            <Avatar src={details.image} variant='square' size={80} />
+            {type === 'like' && (
+              <LikeIcon
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  left: 4,
+                }}
+              />
+            )}
+            {type === 'super-like' && (
+              <SuperLikeIcon
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  left: 4,
+                }}
+              />
+            )}
+            <OpenInNewLink
+              href={details.url}
+              height={24}
+              width={24}
+              position='absolute'
+              top={4}
+              right={4}
+            />
+          </div>
         )}
       </ListItemAvatar>
       <ListItemText
@@ -47,19 +83,27 @@ const BusinessListItem: React.FC<BusinessListItemProps> = ({
         primary={
           <>
             <Box display='flex' alignItems='center'>
-              {business && <Stars rating={business.rating} />}
+              {!isLoading && details && <Stars rating={details.rating} />}
               <Typography variant='caption' noWrap height={18}>
-                {!business ? <Skeleton width={80} /> : business.reviews}
+                {isLoading || !details ? (
+                  <Skeleton width={80} />
+                ) : (
+                  details.reviews
+                )}
               </Typography>
             </Box>
             <Typography variant='body1' component='div'>
-              {!business ? <Skeleton width='80%' /> : business.name}
+              {isLoading || !details ? <Skeleton width='80%' /> : details.name}
             </Typography>
           </>
         }
         secondary={
           <Typography variant='body2' component='div'>
-            {!business ? <Skeleton width='60%' /> : business.location}
+            {isLoading || !details ? (
+              <Skeleton width='60%' />
+            ) : (
+              details.location
+            )}
           </Typography>
         }
       />
