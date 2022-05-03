@@ -29,11 +29,11 @@ import SettingsIcon from '@mui/icons-material/Settings'
 import NotificationsIcon from '@mui/icons-material/Notifications'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import SignOutIcon from '@mui/icons-material/Logout'
-import ListItem from '@mui/material/ListItem'
+import ListItem, { ListItemProps } from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemAvatar from '@mui/material/ListItemAvatar'
 import ListItemIcon from '@mui/material/ListItemIcon'
-import ListItemText from '@mui/material/ListItemText'
+import ListItemText, { ListItemTextProps } from '@mui/material/ListItemText'
 import Badge from '@mui/material/Badge'
 import SearchIcon from '@mui/icons-material/Search'
 import InputAdornment from '@mui/material/InputAdornment'
@@ -110,6 +110,57 @@ const SearchInput: React.FC<{ autocomplete: Autocomplete }> = props => {
   )
 }
 
+type ListItemUserProps = ListItemProps & {
+  isLoading?: boolean
+  user?: User
+  primary?: ListItemTextProps['primary']
+  secondary?: ListItemTextProps['secondary']
+}
+
+const ListItemUser: React.FC<ListItemUserProps> = props => {
+  const { isLoading, user, primary, secondary, ...listItemProps } = props
+  const { viewProfile } = useProfile()
+
+  return (
+    <ListItem disableGutters {...listItemProps}>
+      <ListItemButton
+        role={undefined}
+        onClick={() => viewProfile(user)}
+        disabled={isLoading}
+        dense
+        sx={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          ':hover': {
+            '& span': {
+              textDecoration: 'underline',
+            },
+          },
+          ':not(:focus):hover': {
+            backgroundColor: 'transparent',
+          },
+        }}
+      >
+        <ListItemAvatar>
+          <Avatar
+            isLoading={isLoading}
+            id={user?.uid}
+            alt={user?.name}
+            src={user?.photoURL}
+          />
+        </ListItemAvatar>
+        <ListItemText
+          primary={isLoading ? <Skeleton width='80%' /> : primary || user?.name}
+          secondary={
+            isLoading ? <Skeleton width='50%' /> : secondary || user?.username
+          }
+        />
+      </ListItemButton>
+    </ListItem>
+  )
+}
+
 const SearchResults: React.FC<{
   autocomplete: Autocomplete
   autocompleteState: AutocompleteState
@@ -137,17 +188,15 @@ const SearchResults: React.FC<{
                   <List className='aa-List' {...autocomplete.getListProps()}>
                     {items.length > 0
                       ? items.map(item => (
-                          <ListItem
+                          <ListItemUser
                             key={item.objectID}
                             className='aa-Item'
                             disableGutters
                             sx={{
-                              '&[aria-selected="true"]': {
-                                backgroundColor: 'action.hover',
-                                '& [tabindex="0"]': {
-                                  backgroundColor: 'transparent',
+                              '&[aria-selected="true"]:not(:hover) .MuiListItemButton-root':
+                                {
+                                  backgroundColor: 'action.hover',
                                 },
-                              },
                             }}
                             secondaryAction={
                               source.sourceId === 'recent' ? (
@@ -165,43 +214,28 @@ const SearchResults: React.FC<{
                               item,
                               source,
                             })}
-                          >
-                            <ListItemButton
-                              role={undefined}
-                              dense
-                              sx={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              <ListItemAvatar>
-                                <Avatar alt={item.name} src={item.photoURL} />
-                              </ListItemAvatar>
-                              <ListItemText
-                                primary={item._highlightedParts.name.map(
-                                  part => {
-                                    if (!part.isHighlighted) return part.value
-                                    return (
-                                      <strong key={part.value}>
-                                        {part.value}
-                                      </strong>
-                                    )
-                                  }
-                                )}
-                                secondary={item._highlightedParts.username.map(
-                                  part => {
-                                    if (!part.isHighlighted) return part.value
-                                    return (
-                                      <strong key={part.value}>
-                                        {part.value}
-                                      </strong>
-                                    )
-                                  }
-                                )}
-                              />
-                            </ListItemButton>
-                          </ListItem>
+                            primary={item._highlightedParts.name.map(part => {
+                              if (!part.isHighlighted) return part.value
+                              return (
+                                <strong key={part.value}>{part.value}</strong>
+                              )
+                            })}
+                            secondary={item._highlightedParts.username.map(
+                              part => {
+                                if (!part.isHighlighted) return part.value
+                                return (
+                                  <strong key={part.value}>{part.value}</strong>
+                                )
+                              }
+                            )}
+                            user={{
+                              uid: item.objectID,
+                              photoURL: item.photoURL,
+                              name: item.name,
+                              username: item.username,
+                              about: item.about,
+                            }}
+                          />
                         ))
                       : !!autocompleteState.query &&
                         autocompleteState.status === 'idle' &&
@@ -227,25 +261,23 @@ const SearchResults: React.FC<{
 }
 
 type ContactPopperProps = {
-  deleteContact: () => void
-  blockContact: () => void
-  locked: boolean
+  contact?: User
 }
 
-const ContactPopper: React.FC<ContactPopperProps> = ({
-  deleteContact,
-  locked,
-}) => {
+const ContactPopper: React.FC<ContactPopperProps> = ({ contact }) => {
   const popper = usePopper<HTMLButtonElement>()
+  const deleteContact = useDeleteContact(contact)
+  const blockContact = useBlockContact(contact)
+  const isMutating = useIsMutating(['contacts', contact?.uid]) > 0
 
   const handleDeleteContact = () => {
     popper.handlePopperClose()
-    deleteContact()
+    deleteContact.mutate(contact!)
   }
 
   const handleBlockContact = () => {
     popper.handlePopperClose()
-    deleteContact()
+    blockContact.mutate(contact!)
   }
 
   return (
@@ -262,14 +294,14 @@ const ContactPopper: React.FC<ContactPopperProps> = ({
       <Popper {...popper.getPopperProps()} placement='bottom'>
         <ClickAwayListener onClickAway={popper.handlePopperClose}>
           <MenuList component={Paper}>
-            <MenuItem dense onClick={handleDeleteContact} disabled={locked}>
+            <MenuItem dense onClick={handleDeleteContact} disabled={isMutating}>
               Remove
             </MenuItem>
             <MenuItem
               dense
               sx={{ color: t => t.palette.error.main }}
               onClick={handleBlockContact}
-              disabled={locked}
+              disabled={isMutating}
             >
               Block
             </MenuItem>
@@ -277,60 +309,6 @@ const ContactPopper: React.FC<ContactPopperProps> = ({
         </ClickAwayListener>
       </Popper>
     </>
-  )
-}
-
-type ContactProps = {
-  contact?: User
-  isLoading: boolean
-}
-
-const Contact: React.FC<ContactProps> = props => {
-  const { contact, isLoading } = props
-  const deleteContact = useDeleteContact(contact)
-  const blockContact = useBlockContact(contact)
-  const isMutating = useIsMutating(['contacts', contact?.uid]) > 0
-  const { viewProfile } = useProfile()
-
-  return (
-    <ListItem
-      disableGutters
-      secondaryAction={
-        contact &&
-        !isLoading && (
-          <ContactPopper
-            deleteContact={() => deleteContact.mutate(contact)}
-            blockContact={() => blockContact.mutate(contact)}
-            locked={isMutating}
-          />
-        )
-      }
-    >
-      <ListItemButton
-        role={undefined}
-        onClick={() => viewProfile(contact!)}
-        dense
-        sx={{
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-        disabled={isLoading}
-      >
-        <ListItemAvatar>
-          <Avatar
-            isLoading={isLoading}
-            id={contact?.uid}
-            alt={contact?.name}
-            src={contact?.photoURL}
-          />
-        </ListItemAvatar>
-        <ListItemText
-          primary={isLoading ? <Skeleton width='80%' /> : contact?.name}
-          secondary={isLoading ? <Skeleton width='50%' /> : contact?.username}
-        />
-      </ListItemButton>
-    </ListItem>
   )
 }
 
@@ -353,10 +331,13 @@ const ContactsMenu: React.FC = props => {
           <Box>
             <List>
               {data!.map((contact, index) => (
-                <Contact
+                <ListItemUser
                   key={contact?.uid || index}
-                  contact={contact}
+                  user={contact}
                   isLoading={isPlaceholderData}
+                  secondaryAction={
+                    contact && !isPlaceholderData && <ContactPopper />
+                  }
                 />
               ))}
             </List>

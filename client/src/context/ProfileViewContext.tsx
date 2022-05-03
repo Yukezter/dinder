@@ -95,7 +95,7 @@ const Profile: React.FC<ProfileProps> = ({ userProfile }) => {
 }
 
 interface IProfileViewContext {
-  viewProfile: (userProfile: User) => void
+  viewProfile: (userProfile?: User) => void
 }
 
 const ProfileViewContext = React.createContext<IProfileViewContext>(
@@ -112,9 +112,11 @@ export const ProfileViewProvider: React.FC<
   const [isOpen, setIsOpen] = React.useState(false)
   const [userProfile, setUserProfile] = React.useState<User>()
 
-  const viewProfile = (userProfile: User) => {
-    setUserProfile(userProfile)
-    setIsOpen(true)
+  const viewProfile = (userProfile?: User) => {
+    if (userProfile) {
+      setUserProfile(userProfile)
+      setIsOpen(true)
+    }
   }
 
   return (
