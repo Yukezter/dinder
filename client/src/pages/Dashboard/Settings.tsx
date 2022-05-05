@@ -29,7 +29,9 @@ import AddIcon from '@mui/icons-material/AddCircle'
 import ArrowDownIcon from '@mui/icons-material/ArrowDropDown'
 import CheckIcon from '@mui/icons-material/Check'
 
-import { authService, usersService } from '../../services'
+import { AuthService } from '../../services/auth'
+// import { usersService } from '../../services'
+import { UsersService } from '../../services/users'
 import { IAuthContext, useAuth } from '../../context/AuthContext'
 import { useUser } from '../../context/FirestoreContext'
 import { TextField, Button, Link, Avatar } from '../../common/components'
@@ -59,7 +61,7 @@ export const GeneralSettings: React.FC = () => {
   const { formState } = form
 
   const mutation = useMutation<void, any, GeneralSettingsInputs>(async data => {
-    return usersService.updateUser(data)
+    return UsersService.updateUser(data)
   })
 
   const onSubmit: SubmitHandler<GeneralSettingsInputs> = data => {
@@ -183,7 +185,7 @@ const VerificationCodeDialog: React.FC<VerificationCodeDialogProps> = props => {
   const mutation = useMutation<void, any, VerificationCodeInput>(
     async ({ verificationCode }) => {
       console.log('verificationCode', verificationCode)
-      await authService.updatePhoneNumber(verificationId!, verificationCode)
+      await AuthService.updatePhoneNumber(verificationId!, verificationCode)
       auth.user!.reload()
       handleClose()
     }
@@ -245,16 +247,16 @@ export const PersonalSettings = () => {
 
   React.useEffect(() => {
     const button = recaptchaButtonRef.current!
-    const appVerifier = authService.createRecaptchaVerifier(button)
+    const appVerifier = AuthService.createRecaptchaVerifier(button)
     appVerifierRef.current = appVerifier
   }, [])
 
   const mutation = useMutation<void, any, PersonalSettingsInputs>(
     async ({ email, phoneNumber }) => {
-      await authService.updateEmail(email)
+      await AuthService.updateEmail(email)
       if (phoneNumber) {
         const appVerifier = appVerifierRef.current!
-        const verificationId = await authService.verifyPhoneNumber(
+        const verificationId = await AuthService.verifyPhoneNumber(
           phoneNumber,
           appVerifier
         )
@@ -355,7 +357,7 @@ export const PasswordSettings: React.FC = () => {
 
   const mutation = useMutation<void, any, PasswordSettingsInputs>(
     async data => {
-      return authService.updatePassword(data.newPassword)
+      return AuthService.updatePassword(data.newPassword)
     }
   )
 
@@ -424,7 +426,7 @@ const ProfilePhotoSettings: React.FC = () => {
   const mutation = useMutation<UploadResult, FirebaseError, File>(
     async file => {
       const userId = user.uid
-      return usersService.setProfilePhoto(userId, file)
+      return UsersService.setProfilePhoto(userId, file)
     }
   )
 

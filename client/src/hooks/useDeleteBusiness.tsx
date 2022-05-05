@@ -1,7 +1,7 @@
 import { FieldValue, Timestamp } from 'firebase/firestore'
 import { useMutation, UseMutationOptions, useQueryClient } from 'react-query'
 
-import { usersService } from '../services'
+import { UsersService } from '../services/users'
 import { useUser, Business } from '../context/FirestoreContext'
 
 const useDeleteBusiness = (
@@ -10,7 +10,7 @@ const useDeleteBusiness = (
   const queryClient = useQueryClient()
   const user = useUser()
   return useMutation<void, unknown, Business>(
-    data => usersService.deleteBusiness(user.uid, data.id),
+    data => UsersService.deleteBusiness(user.uid, data.id),
     {
       onMutate(data) {
         const oldData = queryClient.getQueryData<Business[]>('businesses')!

@@ -13,7 +13,7 @@ import GlobalStyles from '@mui/material/GlobalStyles'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
-import Popper, { PopperProps } from '@mui/material/Popper'
+import Popper from '@mui/material/Popper'
 import Skeleton from '@mui/material/Skeleton'
 import MenuList from '@mui/material/MenuList'
 import MenuItem from '@mui/material/MenuItem'
@@ -22,19 +22,14 @@ import List from '@mui/material/List'
 import Typography from '@mui/material/Typography'
 import Container from '@mui/material/Container'
 import Hidden from '@mui/material/Hidden'
-import LocalDiningTwoToneIcon from '@mui/icons-material/LocalDiningTwoTone'
-import DashboardIcon from '@mui/icons-material/Dashboard'
 import GroupIcon from '@mui/icons-material/Group'
-import SettingsIcon from '@mui/icons-material/Settings'
 import NotificationsIcon from '@mui/icons-material/Notifications'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import SignOutIcon from '@mui/icons-material/Logout'
 import ListItem, { ListItemProps } from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemAvatar from '@mui/material/ListItemAvatar'
-import ListItemIcon from '@mui/material/ListItemIcon'
 import ListItemText, { ListItemTextProps } from '@mui/material/ListItemText'
-import Badge from '@mui/material/Badge'
 import SearchIcon from '@mui/icons-material/Search'
 import InputAdornment from '@mui/material/InputAdornment'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -45,7 +40,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
 import { useUser, User } from '../../context/FirestoreContext'
 import { useProfile } from '../../context/ProfileViewContext'
-import { authService, usersService } from '../../services'
+import { AuthService } from '../../services/auth'
 import {
   useSearch,
   usePopper,
@@ -65,10 +60,22 @@ import {
 
 const searchInputHeight = 40
 
-const SearchInput: React.FC<{ autocomplete: Autocomplete }> = props => {
-  const { autocomplete } = props
+const SearchInput: React.FC<{
+  autocomplete: Autocomplete
+  status?: string
+  isOpen?: boolean
+}> = React.memo(props => {
+  const { autocomplete, isOpen, status } = props
+
+  const handleClearSearch = () => {
+    if (autocomplete) {
+      autocomplete.setQuery('')
+      autocomplete.setCollections([])
+    }
+  }
+
   return (
-    <Box mb={3}>
+    <Box>
       <TextField
         id='search'
         fullWidth
@@ -97,6 +104,20 @@ const SearchInput: React.FC<{ autocomplete: Autocomplete }> = props => {
               <SearchIcon />
             </InputAdornment>
           ),
+          endAdornment:
+            status === 'loading' ? (
+              <InputAdornment position='end'>
+                <CircularProgress size={20} />
+              </InputAdornment>
+            ) : (
+              isOpen && (
+                <InputAdornment position='end'>
+                  <IconButton size='small' onClick={handleClearSearch}>
+                    <CloseIcon />
+                  </IconButton>
+                </InputAdornment>
+              )
+            ),
         }}
         sx={{
           mb: 0,
@@ -108,24 +129,25 @@ const SearchInput: React.FC<{ autocomplete: Autocomplete }> = props => {
       />
     </Box>
   )
-}
+})
 
 type ListItemUserProps = ListItemProps & {
   isLoading?: boolean
   user?: User
+  viewProfile?: () => void
   primary?: ListItemTextProps['primary']
   secondary?: ListItemTextProps['secondary']
 }
 
 const ListItemUser: React.FC<ListItemUserProps> = props => {
-  const { isLoading, user, primary, secondary, ...listItemProps } = props
-  const { viewProfile } = useProfile()
+  const { isLoading, user, viewProfile, primary, secondary, ...listItemProps } =
+    props
 
   return (
-    <ListItem disableGutters {...listItemProps}>
+    <ListItem disableGutters divider {...listItemProps}>
       <ListItemButton
         role={undefined}
-        onClick={() => viewProfile(user)}
+        onClick={viewProfile}
         disabled={isLoading}
         dense
         sx={{
@@ -133,13 +155,14 @@ const ListItemUser: React.FC<ListItemUserProps> = props => {
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
           ':hover': {
+            backgroundColor: 'transparent',
             '& span': {
               textDecoration: 'underline',
             },
           },
-          ':not(:focus):hover': {
-            backgroundColor: 'transparent',
-          },
+          // ':not(:focus):hover': {
+          //   backgroundColor: 'transparent',
+          // },
         }}
       >
         <ListItemAvatar>
@@ -153,7 +176,11 @@ const ListItemUser: React.FC<ListItemUserProps> = props => {
         <ListItemText
           primary={isLoading ? <Skeleton width='80%' /> : primary || user?.name}
           secondary={
-            isLoading ? <Skeleton width='50%' /> : secondary || user?.username
+            isLoading ? (
+              <Skeleton width='50%' />
+            ) : (
+              `@${secondary || user?.username}`
+            )
           }
         />
       </ListItemButton>
@@ -169,91 +196,96 @@ const SearchResults: React.FC<{
     <Box className='aa-Panel' {...autocomplete.getPanelProps({})}>
       {autocompleteState && autocompleteState.isOpen && (
         <>
-          {autocompleteState.status === 'stalled' ? (
-            <CircularProgress />
-          ) : (
+          {autocompleteState.status !== 'loading' &&
             autocompleteState!.collections.map(({ source, items }, index) => {
               return (
                 <div key={`source-${index}`} className='aa-Source'>
                   {source.sourceId === 'recent' && items.length > 0 && (
-                    <Typography variant='body2' px={1} fontWeight={600}>
+                    <Typography
+                      variant='body2'
+                      px={1}
+                      pt={1.5}
+                      fontWeight={600}
+                    >
                       RECENT
                     </Typography>
                   )}
                   {source.sourceId === 'users' && (
-                    <Typography variant='body2' px={1} fontWeight={600}>
+                    <Typography
+                      variant='body2'
+                      px={1}
+                      pt={1.5}
+                      fontWeight={600}
+                    >
                       SEARCH RESULTS
                     </Typography>
                   )}
-                  <List className='aa-List' {...autocomplete.getListProps()}>
-                    {items.length > 0
-                      ? items.map(item => (
-                          <ListItemUser
-                            key={item.objectID}
-                            className='aa-Item'
-                            disableGutters
-                            sx={{
-                              '&[aria-selected="true"]:not(:hover) .MuiListItemButton-root':
-                                {
-                                  backgroundColor: 'action.hover',
-                                },
-                            }}
-                            secondaryAction={
-                              source.sourceId === 'recent' ? (
-                                <IconButton
-                                  aria-label='delete'
-                                  {...autocomplete.getRemoveRecentItemProps(
-                                    item
-                                  )}
-                                >
-                                  <CloseIcon />
-                                </IconButton>
-                              ) : undefined
-                            }
-                            {...autocomplete.getItemProps({
-                              item,
-                              source,
-                            })}
-                            primary={item._highlightedParts.name.map(part => {
+
+                  {items.length > 0 ? (
+                    <List className='aa-List' {...autocomplete.getListProps()}>
+                      {items.map(item => (
+                        <ListItemUser
+                          key={item.objectID}
+                          className='aa-Item'
+                          sx={{
+                            '&[aria-selected="true"]:not(:hover) .MuiListItemButton-root':
+                              {
+                                backgroundColor: 'action.hover',
+                              },
+                          }}
+                          secondaryAction={
+                            source.sourceId === 'recent' ? (
+                              <IconButton
+                                aria-label='delete'
+                                {...autocomplete.getRemoveRecentItemProps(item)}
+                              >
+                                <CloseIcon />
+                              </IconButton>
+                            ) : undefined
+                          }
+                          {...autocomplete.getItemProps({
+                            item,
+                            source,
+                          })}
+                          primary={item._highlightedParts.name.map(part => {
+                            if (!part.isHighlighted) return part.value
+                            return (
+                              <strong key={part.value}>{part.value}</strong>
+                            )
+                          })}
+                          secondary={item._highlightedParts.username.map(
+                            part => {
                               if (!part.isHighlighted) return part.value
                               return (
                                 <strong key={part.value}>{part.value}</strong>
                               )
-                            })}
-                            secondary={item._highlightedParts.username.map(
-                              part => {
-                                if (!part.isHighlighted) return part.value
-                                return (
-                                  <strong key={part.value}>{part.value}</strong>
-                                )
-                              }
-                            )}
-                            user={{
-                              uid: item.objectID,
-                              photoURL: item.photoURL,
-                              name: item.name,
-                              username: item.username,
-                              about: item.about,
-                            }}
-                          />
-                        ))
-                      : !!autocompleteState.query &&
-                        autocompleteState.status === 'idle' &&
-                        source.sourceId === 'users' && (
-                          <ListItem component='div'>
-                            <ListItemAvatar>
-                              <Avatar>
-                                <SadFaceIcon />
-                              </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText>No Users Found</ListItemText>
-                          </ListItem>
-                        )}
-                  </List>
+                            }
+                          )}
+                          user={{
+                            uid: item.objectID,
+                            photoURL: item.photoURL,
+                            name: item.name,
+                            username: item.username,
+                            about: item.about,
+                          }}
+                        />
+                      ))}
+                    </List>
+                  ) : (
+                    !!autocompleteState.query &&
+                    autocompleteState.status === 'idle' &&
+                    source.sourceId === 'users' && (
+                      <Box display='flex' alignItems='center' p={2}>
+                        <Avatar sx={{ mr: 2 }}>
+                          <SadFaceIcon />
+                        </Avatar>
+                        <Typography>No Users Found</Typography>
+                      </Box>
+                    )
+                  )}
                 </div>
               )
-            })
-          )}
+            })}
         </>
       )}
     </Box>
@@ -313,7 +345,8 @@ const ContactPopper: React.FC<ContactPopperProps> = ({ contact }) => {
 }
 
 const ContactsMenu: React.FC = props => {
-  const { autocomplete, autocompleteState } = useSearch()
+  const { viewProfile } = useProfile()
+  const { autocomplete, autocompleteState } = useSearch(viewProfile)
   const { data, isPlaceholderData } = useGetContacts({
     placeholderData: Array.from(Array(5)).fill(undefined),
   })
@@ -321,28 +354,32 @@ const ContactsMenu: React.FC = props => {
   return (
     <>
       <Box className='aa-Autocomplete' {...autocomplete.getRootProps({})}>
-        <SearchInput autocomplete={autocomplete} />
+        <Typography variant='body2' px={1} py={1.5} fontWeight={600}>
+          CONTACTS
+        </Typography>
+        <SearchInput
+          autocomplete={autocomplete}
+          status={autocompleteState?.status}
+          isOpen={autocompleteState?.isOpen}
+        />
       </Box>
       {!autocompleteState?.isOpen && (
-        <>
-          <Typography variant='body2' px={1} fontWeight={600}>
-            CONTACTS
-          </Typography>
-          <Box>
-            <List>
-              {data!.map((contact, index) => (
-                <ListItemUser
-                  key={contact?.uid || index}
-                  user={contact}
-                  isLoading={isPlaceholderData}
-                  secondaryAction={
-                    contact && !isPlaceholderData && <ContactPopper />
-                  }
-                />
-              ))}
-            </List>
-          </Box>
-        </>
+        <Box>
+          <List>
+            {data!.map((contact, index) => (
+              <ListItemUser
+                key={contact?.uid || index}
+                user={contact}
+                viewProfile={() => viewProfile(contact)}
+                isLoading={isPlaceholderData}
+                secondaryAction={
+                  contact &&
+                  !isPlaceholderData && <ContactPopper contact={contact} />
+                }
+              />
+            ))}
+          </List>
+        </Box>
       )}
       <SearchResults
         autocomplete={autocomplete}
@@ -379,28 +416,24 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
         },
       }}
     >
-      <Container maxWidth={false}>
-        <Box position='relative'>
+      <Container maxWidth={false} disableGutters>
+        <Box
+          position='relative'
+          textAlign='center'
+          sx={{ background: 'linear-gradient(#de59a9, #fa6715)' }}
+        >
           <Hidden mdUp>
             <IconButton
-              sx={{ position: 'absolute', left: 0, top: 12 }}
+              sx={{ position: 'absolute', left: 20, top: 12 }}
               onClick={closeContacts}
             >
               <ArrowBackIcon />
             </IconButton>
           </Hidden>
-          <BrandName
-            to='/dashboard'
-            fontSize={20}
-            py={2}
-            sx={{
-              textAlign: {
-                xs: 'center',
-                md: 'left',
-              },
-            }}
-          />
+          <BrandName to='/dashboard' fontSize={20} py={2} />
         </Box>
+      </Container>
+      <Container maxWidth={false}>
         <ContactsMenu />
       </Container>
     </Drawer>
@@ -430,7 +463,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
   const signOutButtonRef = React.useRef<HTMLButtonElement>(null)
 
   const signOut = () => {
-    authService.signOut()
+    AuthService.signOut()
   }
 
   return (

@@ -1,26 +1,25 @@
 /* eslint-disable import/no-anonymous-default-export */
+import Box from '@mui/material/Box'
+import LocalDiningTwoToneIcon from '@mui/icons-material/LocalDiningTwoTone'
 
 import Link, { LinkProps } from './RouterLink'
 
-export default ({ sx = [], ...props }: LinkProps) => {
+export default (props: LinkProps) => {
   return (
     <Link
       variant='h6'
       fontWeight={800}
-      color='primary'
+      color='white'
       underline='hover'
       display='inline-block'
-      sx={[
-        {
-          ':hover': {
-            textDecorationColor: theme => theme.palette.secondary.main,
-          },
-        },
-        ...(Array.isArray(sx) ? sx : [sx]),
-      ]}
+      width='auto'
+      mx='auto'
       {...props}
     >
-      Dinder.
+      <Box display='flex' alignItems='center'>
+        <span>Dinder</span>
+        <LocalDiningTwoToneIcon />
+      </Box>
     </Link>
   )
 }

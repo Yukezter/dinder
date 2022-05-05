@@ -12,8 +12,8 @@ import {
 } from '@algolia/autocomplete-core'
 
 import { ALGOLIA_APP_ID, ALGOLIA_SEARCH_KEY } from '../config/algoliasearch'
-import { usersService } from '../services'
-import { useProfile } from '../context/ProfileViewContext'
+import { UsersService } from '../services/users'
+import { User } from '../context/FirestoreContext'
 
 type HighLightedParts = {
   isHighlighted: boolean
@@ -51,9 +51,8 @@ export type Autocomplete = AutocompleteApi<
 
 const searchClient = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_SEARCH_KEY)
 
-const useSearch = () => {
+const useSearch = (viewProfile: (userProfile?: User | undefined) => void) => {
   // const navigate = useNavigate()
-  const { viewProfile } = useProfile()
 
   const [autocompleteState, setAutocompleteState] =
     React.useState<AutocompleteState>(null)
@@ -94,12 +93,10 @@ const useSearch = () => {
         React.KeyboardEvent
       >({
         plugins: [recentSearchesPlugin],
-        openOnFocus: true,
         placeholder: 'Find contacts!',
         stallThreshold: 1000,
         debug: true,
         onStateChange(stateChangeProps) {
-          // console.log('stateChangeProps', stateChangeProps)
           const { state } = stateChangeProps
           setAutocompleteState({
             ...state,
@@ -154,7 +151,6 @@ const useSearch = () => {
                   username: item.username,
                   about: item.about,
                 })
-                // navigate(`profile/${item.objectID}`)
 
                 item._highlightedParts = {
                   name: [{ value: item.name, isHighlighted: false }],
@@ -167,9 +163,6 @@ const useSearch = () => {
                   ...item,
                 })
               },
-              onActive({ event }) {
-                // console.log(event)
-              },
             },
           ]
         },
@@ -178,7 +171,7 @@ const useSearch = () => {
   )
 
   React.useEffect(() => {
-    const unsubscribe = usersService.onUsernamesSnapshot(
+    const unsubscribe = UsersService.onUsernamesSnapshot(
       () => {
         searchClient.clearCache().then(() => {
           autocomplete.refresh()

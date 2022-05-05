@@ -103,9 +103,9 @@ export class PartiesService {
     return res.data
   }
 
-  static deleteParty = async (partyId: string) => {
+  static leaveParty = async (partyId: string) => {
     const data = { data: { partyId } }
-    const res = await api.cloud.post<void>('/deleteParty', data)
+    const res = await api.cloud.post<void>('/leaveParty', data)
     return res.data
   }
 

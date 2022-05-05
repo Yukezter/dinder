@@ -16,14 +16,19 @@ import {
   useMotionTemplate,
   MotionProps,
 } from 'framer-motion'
+import { useTheme } from '@mui/material/styles'
+import useMediaQuery from '@mui/material/useMediaQuery'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Skeleton from '@mui/material/Skeleton'
 import Grid from '@mui/material/Grid'
 import Dialog, { DialogProps } from '@mui/material/Dialog'
-import Hidden from '@mui/material/Hidden'
+import Drawer from '@mui/material/Drawer'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
+import Card from '@mui/material/Card'
+import CardMedia from '@mui/material/CardMedia'
+import CardContent from '@mui/material/CardContent'
 import Popper from '@mui/material/Popper'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
 import { IconButtonProps } from '@mui/material/IconButton'
@@ -33,19 +38,16 @@ import MenuItem from '@mui/material/MenuItem'
 import Chip from '@mui/material/Chip'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 
-import { usersService } from '../../services'
 import { UsersService } from '../../services/users'
 import { PartiesService } from '../../services/parties'
 import {
   useUser,
-  useParties,
   useBusinesses,
   PopulatedParty,
   YelpResponse,
   YelpBusiness,
   Business,
   BusinessesData,
-  Swipes,
   SwipeAction,
   Match,
 } from '../../context/FirestoreContext'
@@ -55,7 +57,7 @@ import {
   usePopper,
   useAddBusiness,
   useDeleteBusiness,
-  useOnDocumentSnapshot,
+  useLeaveParty,
 } from '../../hooks'
 import { BusinessListItem } from '../../components'
 import {
@@ -73,14 +75,30 @@ import FavoriteIcon from '../../common/icons/Favorite'
 
 const PartyOptionsPopper = ({
   party,
+  setParty,
   handleUpdatePartySettings,
+  openMatches,
 }: {
   party: PopulatedParty
+  setParty: React.Dispatch<React.SetStateAction<PopulatedParty | undefined>>
   handleUpdatePartySettings: (updatedParty: PopulatedParty) => void
+  openMatches: () => void
 }) => {
   const popper = usePopper()
   const user = useUser()
   const { openSettings } = usePartySettings()
+  const leaveParty = useLeaveParty(party)
+
+  const handleLeaveParty = () => {
+    leaveParty.mutate(party)
+    setParty(prevParty => ({
+      ...prevParty!,
+      members: prevParty!.members.filter(member => {
+        return member.uid !== user.uid
+      }),
+    }))
+  }
+
   return (
     <>
       <IconButton
@@ -97,10 +115,17 @@ const PartyOptionsPopper = ({
       <Popper {...popper.getPopperProps()}>
         <ClickAwayListener onClickAway={popper.handlePopperClose}>
           <MenuList component={Paper}>
-            <MenuItem dense sx={{ display: { lg: 'none' } }}>
-              History
+            <MenuItem
+              dense
+              sx={{ display: { lg: 'none' } }}
+              onClick={() => {
+                popper.handlePopperClose()
+                openMatches()
+              }}
+            >
+              Matches
             </MenuItem>
-            {user.uid === party?.admin ? (
+            {user.uid === party?.admin && (
               <MenuItem
                 dense
                 onClick={() => {
@@ -115,17 +140,18 @@ const PartyOptionsPopper = ({
               >
                 Edit
               </MenuItem>
-            ) : (
-              <MenuItem
-                dense
-                sx={{ color: t => t.palette.error.main }}
-                onClick={() => {
-                  popper.handlePopperClose()
-                }}
-              >
-                Leave
-              </MenuItem>
             )}
+            <MenuItem
+              dense
+              sx={{ color: t => t.palette.error.main }}
+              onClick={e => {
+                e.preventDefault()
+                popper.handlePopperClose()
+                handleLeaveParty()
+              }}
+            >
+              {user.uid === party?.admin ? 'Delete' : 'Leave'}
+            </MenuItem>
           </MenuList>
         </ClickAwayListener>
       </Popper>
@@ -206,6 +232,7 @@ const SwipeButton: React.FC<SwipeButtonProps> = ({
           boxShadow: theme.shadows[3],
           height: width,
           width: width,
+          color: 'white',
         }),
         ...(Array.isArray(sx) ? sx : [sx]),
       ]}
@@ -225,32 +252,53 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
 
   return (
     <Dialog {...dialogProps}>
-      <Paper sx={{ p: 5 }}>
-        <Typography variant='h6' gutterBottom>
-          {match?.details.name}
+      {/* <Paper sx={{ p: 5 }}>
+        
+      </Paper> */}
+      <Card sx={{ width: 345, p: 1 }}>
+        {/* <CardActionArea> */}
+        <Typography variant='h5' component='div' align='center' py={2}>
+          {match?.type === 'like' && "It's a match!"}
+          {match?.type === 'super-like' && "It's a super match!"}
         </Typography>
-        <Box display='flex'>
-          <Box display='flex'>
-            <Chip
-              label={match?.details.price}
-              size='small'
-              color='primary'
-              variant='filled'
-              sx={{ width: 60, mr: 1 }}
-            />
-          </Box>
-          <div>
-            <Stars rating={match?.details.rating} />
-            <Typography variant='caption'>
-              {match?.details.reviews} Reviews
-            </Typography>
-          </div>
-        </Box>
-        <Typography variant='body2'>{match?.details.location}</Typography>
-        <Typography variant='body1' color='primary'>
-          {match?.details.categories}
-        </Typography>
-      </Paper>
+        <CardMedia
+          component='img'
+          height={200}
+          image={match?.details.image}
+          alt={match?.details.name}
+        />
+        <CardContent>
+          <Grid container>
+            <Grid item xs>
+              <Typography variant='h6' component='div'>
+                {match?.details.name}
+              </Typography>
+              <Typography variant='body2' component='div' gutterBottom>
+                {match?.details.location}
+              </Typography>
+            </Grid>
+            <Grid item xs='auto'>
+              <Box
+                mt={1}
+                display='flex'
+                flexDirection='column'
+                alignItems='flex-end'
+              >
+                <Stars rating={match?.details.rating} />
+                <Typography variant='caption' mt={0.5} mb={0.5}>
+                  {match?.details.reviews} Reviews
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+        {/* </CardActionArea> */}
+        {/* <CardActions disableSpacing>
+          <IconButton aria-label='add to favorites'>
+            <FavoriteIcon />
+          </IconButton>
+        </CardActions> */}
+      </Card>
     </Dialog>
   )
 }
@@ -300,6 +348,7 @@ const useToggleBusiness = (
     }
   }, [business, businesses])
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedMutate = React.useCallback(
     debounce((type: 'save' | 'block') => {
       const isDiff = optimisticSaveRef.current !== trueSaveRef.current
@@ -342,7 +391,7 @@ const useToggleBusiness = (
   const isLoading = addBusiness.isLoading || deleteBusiness.isLoading
   const isOptimisticSave = isDebouncing || isLoading
   const state = isOptimisticSave ? optimisticSave : trueSave
-  console.log(optimisticSave, trueSave, state)
+
   return {
     state,
     optimisticSave,
@@ -397,7 +446,8 @@ type MatchesByDate = { date: string; matches: Match[] }[]
 
 const Matches = ({ partyId }: { partyId: string }) => {
   const user = useUser()
-  const [liveMatches, setLiveMatches] = React.useState<Match[]>([])
+  const [liveMatchQueue, setLiveMatchQueue] = React.useState<Match[]>([])
+  const [liveMatch, setLiveMatch] = React.useState<Match | null>(null)
   const [isOpen, setIsOpen] = React.useState(false)
   const initialCall = React.useRef(true)
   const queryClient = useQueryClient()
@@ -406,6 +456,7 @@ const Matches = ({ partyId }: { partyId: string }) => {
     () => new Promise<MatchesByDate>(() => {}),
     {
       placeholderData: Array(1).fill({ matches: Array(6).fill(undefined) }),
+      keepPreviousData: true,
     }
   )
 
@@ -441,19 +492,20 @@ const Matches = ({ partyId }: { partyId: string }) => {
         queryClient.setQueryData('matches', sortedMatches)
 
         if (!initialCall.current) {
-          initialCall.current = false
           snapshot.docChanges().forEach(change => {
             if (change.type === 'added') {
               const data = change.doc.data()
               if (data.type === 'like' && data.lastToSwipe === user.uid) {
-                setLiveMatches(prevMatches => [...prevMatches, data])
+                setLiveMatchQueue(prevMatches => [...prevMatches, data])
               }
 
               if (data.type === 'super-like') {
-                setLiveMatches(prevMatches => [...prevMatches, data])
+                setLiveMatchQueue(prevMatches => [...prevMatches, data])
               }
             }
           })
+        } else {
+          initialCall.current = false
         }
       },
       error => {
@@ -465,46 +517,56 @@ const Matches = ({ partyId }: { partyId: string }) => {
   }, [partyId, user.uid, queryClient])
 
   React.useEffect(() => {
-    if (!isOpen && liveMatches.length > 0) {
+    if (!isOpen && !liveMatch && liveMatchQueue.length > 0) {
+      const newLiveMatches = [...liveMatchQueue]
+      const newLiveMatch = newLiveMatches.shift()
+      setLiveMatchQueue(newLiveMatches)
+      if (newLiveMatch) {
+        setLiveMatch(newLiveMatch)
+      }
       setIsOpen(true)
     }
-  }, [isOpen, liveMatches])
+  }, [isOpen, liveMatch, liveMatchQueue])
 
   const handleClose = React.useCallback(() => {
     setIsOpen(false)
-    setLiveMatches(prevLiveMatches => {
-      const newLiveMatches = [...prevLiveMatches]
-      newLiveMatches.shift()
-      return newLiveMatches
-    })
   }, [])
 
   return (
-    <Paper
+    <Box
       sx={{
         height: '100%',
-        p: 3,
         display: 'flex',
         flexDirection: 'column',
       }}
     >
       <MatchDialog
-        open={isOpen && !!liveMatches[0]}
-        match={liveMatches[0]}
+        open={isOpen && !!liveMatch}
+        match={liveMatch!}
         onClose={handleClose}
+        closeAfterTransition
+        TransitionProps={{
+          onExited: () => {
+            setLiveMatch(null)
+          },
+        }}
       />
       <Typography variant='h6' mb={2}>
         Matches
       </Typography>
-      <Box sx={{ ...(!matches.isLoading && { overflowY: 'auto' }) }}>
+      <Box
+        sx={{
+          overflowY: matches.isPlaceholderData ? 'hidden' : 'auto',
+        }}
+      >
         {matches.data!.map((group, index) => (
           <Box key={index}>
             <DividerText text={group.date} />
             <List>
               {group.matches.map((match, index) => (
                 <MatchListItem
-                  key={match?.id || index}
-                  isLoading={matches.isLoading}
+                  key={match ? `${match?.id}-${index}` : index}
+                  isLoading={matches.isPlaceholderData}
                   match={match}
                 />
               ))}
@@ -512,7 +574,7 @@ const Matches = ({ partyId }: { partyId: string }) => {
           </Box>
         ))}
       </Box>
-    </Paper>
+    </Box>
   )
 }
 
@@ -531,11 +593,11 @@ const Motion = motion(
   { forwardMotionProps: true }
 )
 
-type CardProps = MotionProps & {
+type BusinessCardProps = MotionProps & {
   business: YelpBusiness
 }
 
-const Card: React.FC<CardProps> = ({
+const BusinessCard: React.FC<BusinessCardProps> = ({
   business,
   style,
   onDirectionLock,
@@ -803,7 +865,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
     unknown,
     { business: YelpBusiness; action: SwipeAction }
   >(async data =>
-    usersService.swipe(party.id, data.business.id, user.uid, data.action)
+    PartiesService.swipe(party.id, data.business.id, user.uid, data.action)
   )
 
   const handleSwipe = React.useCallback(
@@ -909,7 +971,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   const renderCards = () => {
     return cards.map((business, index) =>
       index === cards.length - 1 ? (
-        <Card
+        <BusinessCard
           key={business.id ? `${business.id}-${index}` : index}
           business={business}
           style={{ x, y, zIndex: index }}
@@ -918,7 +980,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
           animate={dragStart.animation}
         />
       ) : (
-        <Card
+        <BusinessCard
           key={business.id ? `${business.id}-${index}` : index}
           business={business}
           style={{
@@ -960,10 +1022,11 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
 type PartyActionsAreaProps = {
   party: PopulatedParty
   setParty: React.Dispatch<React.SetStateAction<PopulatedParty | undefined>>
+  openMatches: () => void
 }
 
 const PartyActionsArea: React.FC<PartyActionsAreaProps> = props => {
-  const { party, setParty } = props
+  const { party, setParty, openMatches } = props
 
   React.useEffect(() => {
     const partyRef = PartiesService.doc.party(party.id)
@@ -972,10 +1035,17 @@ const PartyActionsArea: React.FC<PartyActionsAreaProps> = props => {
       snapshot => {
         const data = snapshot.data()
         if (data) {
-          setParty(prevParty => ({
-            ...data,
-            members: prevParty!.members,
-          }))
+          UsersService.getUsers(data.members)
+            .then(snapshot => {
+              const members = snapshot.docs.map(doc => doc.data())
+              setParty({
+                ...data,
+                members,
+              })
+            })
+            .catch(error => {
+              console.log(error)
+            })
         }
       },
       error => {
@@ -1007,6 +1077,8 @@ const PartyActionsArea: React.FC<PartyActionsAreaProps> = props => {
           </Typography>
           <PartyOptionsPopper
             party={party}
+            setParty={setParty}
+            openMatches={openMatches}
             handleUpdatePartySettings={updateParty}
           />
         </Box>
@@ -1027,6 +1099,18 @@ const PartyView = () => {
   const { partyId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const theme = useTheme()
+  const matches = useMediaQuery(theme.breakpoints.up('lg'))
+  const user = useUser()
+  const [isMatchesOpen, setIsMatchesOpen] = React.useState(false)
+
+  const openMatches = React.useCallback(() => {
+    setIsMatchesOpen(true)
+  }, [])
+
+  const closeMatches = React.useCallback(() => {
+    setIsMatchesOpen(false)
+  }, [])
 
   const [party, setParty] = React.useState<PopulatedParty | undefined>(() => {
     const locationState = (location.state as { party?: PopulatedParty }) || {}
@@ -1044,7 +1128,11 @@ const PartyView = () => {
     })
   }, [party, navigate])
 
-  if (!partyId || !party) {
+  const isNotAMember = !party?.members.some(member => {
+    return member.uid === user.uid
+  })
+
+  if (!partyId || !party || isNotAMember) {
     return <Navigate to='/dashboard' replace />
   }
 
@@ -1052,14 +1140,53 @@ const PartyView = () => {
     <Grid container columnSpacing={4} height='100%'>
       <Grid item xs={12} lg={8} height='100%'>
         <Box height='100%'>
-          <PartyActionsArea party={party} setParty={setParty} />
+          <PartyActionsArea
+            party={party}
+            setParty={setParty}
+            openMatches={openMatches}
+          />
         </Box>
       </Grid>
-      <Hidden lgDown>
-        <Grid item xs={12} lg height='100%'>
+      <Grid item lg height={{ lg: '100%' }}>
+        <Drawer
+          open={isMatchesOpen}
+          onClose={closeMatches}
+          variant={matches ? 'permanent' : 'temporary'}
+          anchor='right'
+          ModalProps={{
+            disablePortal: true,
+            keepMounted: true,
+          }}
+          sx={{
+            maxWidth: 400,
+            '& .MuiDrawer-paper': {
+              maxWidth: 400,
+            },
+            height: {
+              lg: '100%',
+            },
+            p: {
+              lg: 1,
+            },
+            m: {
+              lg: -1,
+            },
+          }}
+          PaperProps={{
+            elevation: 1,
+            sx: {
+              p: 3,
+              overflowY: 'hidden',
+              position: {
+                xs: 'fixed',
+                lg: 'static',
+              },
+            },
+          }}
+        >
           <Matches partyId={partyId} />
-        </Grid>
-      </Hidden>
+        </Drawer>
+      </Grid>
     </Grid>
   )
 }

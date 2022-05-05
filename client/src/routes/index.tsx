@@ -27,14 +27,14 @@ const ProtectedRoute = () => {
 
   return (
     <FirestoreProviders auth={auth as Required<IAuthContext>}>
-      <ProfileViewProvider>
-        <PartySettingsProvider>
+      <PartySettingsProvider>
+        <ProfileViewProvider>
           <DashboardLayout>
             <Outlet />
             {/* <Outlet context={{ auth } as { auth: Required<IAuthContext> }} /> */}
           </DashboardLayout>
-        </PartySettingsProvider>
-      </ProfileViewProvider>
+        </ProfileViewProvider>
+      </PartySettingsProvider>
     </FirestoreProviders>
   )
 }

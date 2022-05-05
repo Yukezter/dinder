@@ -1,6 +1,6 @@
 import { useQuery, UseQueryOptions } from 'react-query'
 
-import { usersService } from '../services'
+import { UsersService } from '../services/users'
 import { useContacts, User } from '../context/FirestoreContext'
 
 const useGetContacts = (options: UseQueryOptions<User[]> = {}) => {
@@ -13,7 +13,7 @@ const useGetContacts = (options: UseQueryOptions<User[]> = {}) => {
         return []
       }
 
-      const snap = await usersService.getUsers(Object.keys(contacts))
+      const snap = await UsersService.getUsers(Object.keys(contacts))
       return snap.docs.map(doc => doc.data())
     },
     {

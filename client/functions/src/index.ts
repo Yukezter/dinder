@@ -21,7 +21,7 @@ const yelpAPI = axios.create({
 })
 
 // eslint-disable-next-line camelcase
-// const firebase_tools = require('firebase-tools')
+const firebase_tools = require('firebase-tools')
 
 // Username used as doc id to ensure uniqueness
 interface Username {
@@ -128,7 +128,10 @@ const matches = (partyId: string) =>
     .collection(`parties/${partyId}/matches`)
     .withConverter(converter<Match>())
 
-// const swipes = firestore.collection('swipes').withConverter(converter<Swipes>())
+const swipes = (partyId: string) =>
+  firestore
+    .collection(`parties/${partyId}/swipes`)
+    .withConverter(converter<Swipes>())
 
 /* ---------- HELPER FUNCTIONS ---------- */
 
@@ -680,7 +683,10 @@ export const blockContact = functions.https.onCall(
           throw new functions.https.HttpsError('not-found', 'No user found')
         }
 
-        const partiesQuery = parties.where('members', 'array-contains', uid)
+        const partiesQuery = parties.where('members', 'array-contains', [
+          uid,
+          contact.uid,
+        ])
         const partiesSnapshot = await tx.get(partiesQuery)
 
         // Remove contact from this user's parties
@@ -691,7 +697,7 @@ export const blockContact = functions.https.onCall(
             tx.update(partyDoc.ref, {
               members: FieldValue.arrayRemove(contact.uid),
             })
-          } else {
+          } else if (party.admin === contact.uid) {
             tx.update(partyDoc.ref, {
               members: FieldValue.arrayRemove(uid),
             })
@@ -723,6 +729,13 @@ export const updateParty = functions.https.onCall(
     // Make sure authenticated user is party admin
     if (uid !== data.admin) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+    }
+
+    if (!data.members.includes(uid)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'You must be a member of your own party!'
+      )
     }
 
     console.log(data)
@@ -771,6 +784,13 @@ export const updateParty = functions.https.onCall(
         return member?.data()[uid] !== false
       })
 
+      if (memberIds.length < 2) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          'Must invite at least 1 party member!'
+        )
+      }
+
       // Create the party
       const partyRef = parties.doc(data.id)
       tx.set(
@@ -799,60 +819,77 @@ export const updateParty = functions.https.onCall(
           return acc
         }, {})
       )
-
-      // Finally, add party id to each member's parties object
-      memberIds.forEach(memberId => {
-        // TODO: remove a user's userParty if they aren't in this member id's list
-        const userPartyRef = userParties.doc(memberId)
-        tx.set(
-          userPartyRef,
-          {
-            [partyRef.id]: true,
-          },
-          { merge: true }
-        )
-      })
     })
   }
 )
 
-/* DELETE PARTY */
+/* LEAVE PARTY */
 
-type DeletePartyDto = {
+type LeavePartyDto = {
   partyId: string
 }
 
-export const deleteParty = functions.https.onCall(
-  async (data: DeletePartyDto, context) => {
+export const leaveParty = functions.https.onCall(
+  async (data: LeavePartyDto, context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
 
     const { uid } = context.auth
 
-    const partyRef = parties.doc(data.partyId)
-    const partySnapshot = await partyRef.get()
-    const party = partySnapshot.data()
+    await firestore.runTransaction(async tx => {
+      const partyRef = parties.doc(data.partyId)
+      const partySnapshot = await tx.get(partyRef)
+      const party = partySnapshot.data()
 
-    if (!party) {
-      throw new functions.https.HttpsError('not-found', 'No user found')
-    }
+      if (!party) {
+        throw new functions.https.HttpsError('not-found', 'No party found')
+      }
 
-    // Make sure authenticated user is party admin
-    if (uid !== party.admin) {
-      throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
-    }
+      // Make sure authenticated user is party admin
+      if (uid === party.admin) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          'You cannot leave your own party!'
+        )
+      }
 
-    try {
-      await firestore.runTransaction(async tx => {
-        // Delete party
-        tx.delete(partyRef)
-      })
-    } catch (error) {
-      console.log(error)
-    }
+      const membersRef = members.doc(party.id)
+
+      if (uid === party.admin) {
+        // Delete party collections/subcollections
+        await firebase_tools.firestore.delete(`parties/${party.id}`, {
+          project: process.env.GCLOUD_PROJECT,
+          recursive: true,
+          yes: true,
+          token: functions.config().fb.token,
+        })
+
+        // Delete members
+        tx.delete(membersRef)
+      } else {
+        // Delete swipes history
+        const swipesQuery = swipes(party.id).orderBy(uid)
+        const swipesSnapshot = await tx.get(swipesQuery)
+        swipesSnapshot.docs.forEach(doc => {
+          tx.update(doc.ref, {
+            [uid]: FieldValue.delete(),
+          })
+        })
+
+        tx.update(partyRef, {
+          members: FieldValue.arrayRemove(uid),
+        })
+
+        tx.update(membersRef, {
+          [uid]: FieldValue.delete(),
+        })
+      }
+    })
   }
 )
+
+/* YELP BUSINESSES ENDPOINT */
 
 const milesToMeters = (miles: number) => miles * 1609
 

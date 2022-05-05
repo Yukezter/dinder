@@ -42,7 +42,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert'
 import AddIcon from '@mui/icons-material/Add'
 
 import { usersService } from '../../services'
-import { usePopper } from '../../hooks'
+import { usePopper, useLeaveParty } from '../../hooks'
 import { usePartySettings } from '../../context/PartySettingsContext'
 import {
   useUser,
@@ -96,43 +96,16 @@ const TableToolbar: React.FC = () => {
   )
 }
 
-const useDeleteParty = (party?: PopulatedParty) => {
-  const queryClient = useQueryClient()
-  return useMutation<void, unknown, PopulatedParty>(
-    async newParty => usersService.deleteParty(newParty.id),
-    {
-      mutationKey: ['parties', party?.id],
-      async onMutate(newParty) {
-        await queryClient.cancelQueries('parties')
-
-        queryClient.setQueryData<PopulatedParty[]>(
-          'parties',
-          (oldParties = []) => {
-            return oldParties!.filter(({ id }) => id !== newParty.id)
-          }
-        )
-      },
-      onError(data, oldParty) {
-        queryClient.setQueryData<PopulatedParty[]>(
-          'parties',
-          (oldParties = []) => {
-            return [...oldParties!, oldParty]
-          }
-        )
-      },
-    }
-  )
-}
-
 const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
   const popper = usePopper()
-  const deleteParty = useDeleteParty(party)
+  const user = useUser()
+  const leaveParty = useLeaveParty(party)
   const isMutating = useIsMutating(['parties', party?.id]) > 0
   const { openSettings } = usePartySettings()
 
-  const handleDeleteParty = () => {
+  const handleLeaveParty = () => {
     if (party) {
-      deleteParty.mutate(party!)
+      leaveParty.mutate(party!)
     }
   }
 
@@ -155,28 +128,30 @@ const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
       <Popper {...popper.getPopperProps()}>
         <ClickAwayListener onClickAway={popper.handlePopperClose}>
           <MenuList component={Paper}>
-            <MenuItem
-              dense
-              onClick={e => {
-                e.preventDefault()
-                if (party) openSettings({ party })
-                popper.handlePopperClose()
-              }}
-              disabled={isMutating}
-            >
-              Edit
-            </MenuItem>
+            {user.uid === party?.admin && (
+              <MenuItem
+                dense
+                onClick={e => {
+                  e.preventDefault()
+                  popper.handlePopperClose()
+                  if (party) openSettings({ party })
+                }}
+                disabled={isMutating}
+              >
+                Edit
+              </MenuItem>
+            )}
             <MenuItem
               dense
               sx={{ color: t => t.palette.error.main }}
               onClick={e => {
                 e.preventDefault()
-                handleDeleteParty()
                 popper.handlePopperClose()
+                handleLeaveParty()
               }}
               disabled={isMutating}
             >
-              Delete
+              {user.uid === party?.admin ? 'Delete' : 'Leave'}
             </MenuItem>
           </MenuList>
         </ClickAwayListener>
@@ -515,7 +490,6 @@ const BusinessLists = () => {
 }
 
 const Dashboard = () => {
-  const user = useUser()
   const { data, isPlaceholderData } = useParties()
 
   const parties = React.useMemo(() => {
@@ -559,13 +533,16 @@ const Dashboard = () => {
       {
         Header: 'Role',
         accessor: 'admin',
-        Cell: ({ value }) => (
-          <Chip
-            label={value === user.uid ? 'Admin' : 'Member'}
-            size='small'
-            variant='outlined'
-          />
-        ),
+        Cell: ({ value }) => {
+          const user = useUser()
+          return (
+            <Chip
+              label={value === user.uid ? 'Admin' : 'Member'}
+              size='small'
+              variant='outlined'
+            />
+          )
+        },
       },
       {
         Header: 'Status',
@@ -607,7 +584,7 @@ const Dashboard = () => {
     }
 
     return cols
-  }, [user.uid, isPlaceholderData])
+  }, [isPlaceholderData])
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { useMutation, UseMutationOptions, useQueryClient } from 'react-query'
 
-import { usersService } from '../services'
+import { UsersService } from '../services/users'
 import { useUser, Business } from '../context/FirestoreContext'
 
 const useAddBusiness = (
@@ -9,7 +9,7 @@ const useAddBusiness = (
   const queryClient = useQueryClient()
   const user = useUser()
   return useMutation<void, unknown, Business, Business | undefined>(
-    data => usersService.addBusiness(user.uid, data),
+    data => UsersService.addBusiness(user.uid, data),
     {
       onMutate(data) {
         const oldData = queryClient.getQueryData<Business[]>('businesses')!

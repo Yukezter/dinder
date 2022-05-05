@@ -11,7 +11,7 @@ import Typography from '@mui/material/Typography'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 
-import { authService } from '../../services'
+import { AuthService } from '../../services/auth'
 import { useAuth } from '../../context/AuthContext'
 import landingImage from '../../assets/images/food.jpg'
 import backgroundImage from '../../assets/images/background.svg'
@@ -34,13 +34,13 @@ const SignUp: React.FC = () => {
   const [checked, setChecked] = React.useState(false)
 
   const mutation = useMutation<string, Error, SignUpFormInputs>(async data => {
-    return authService.signUp(data)
+    return AuthService.signUp(data)
   })
 
   const onSubmit: SubmitHandler<SignUpFormInputs> = data => {
     mutation.mutate(data, {
       onSuccess: async token => {
-        await authService.signInWithCustomToken(token)
+        await AuthService.signInWithCustomToken(token)
       },
     })
   }
@@ -146,7 +146,7 @@ const SignIn: React.FC = () => {
 
   const mutation = useMutation<void, Error, SignInFormInputs>(
     async ({ email, password }) => {
-      await authService.signIn(email, password)
+      await AuthService.signIn(email, password)
     }
   )
 
@@ -155,7 +155,7 @@ const SignIn: React.FC = () => {
     const persistence = checked ? 'LOCAL' : 'SESSION'
     mutation.mutate(data, {
       onSuccess: () => {
-        authService.setPersistence(persistence)
+        AuthService.setPersistence(persistence)
       },
     })
   }
@@ -279,7 +279,7 @@ const Landing = () => {
 
   if (auth.user) {
     if (auth.claims?.accessLevel === 0) {
-      return <Navigate to='/dashboard/settings' replace />
+      return <Navigate to='/settings/general' replace />
     }
 
     if (auth.claims?.accessLevel === 1) {

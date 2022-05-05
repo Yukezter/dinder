@@ -9,17 +9,22 @@ import IconButton from '@mui/material/IconButton'
 import AddIcon from '@mui/icons-material/AddCircleOutline'
 import RemoveIcon from '@mui/icons-material/RemoveCircleOutline'
 import BlockIcon from '@mui/icons-material/DoDisturb'
+import CloseIcon from '@mui/icons-material/Close'
+import LocalDiningTwoToneIcon from '@mui/icons-material/LocalDiningTwoTone'
 
 import { User } from './FirestoreContext'
+import { usePartySettings } from './PartySettingsContext'
 import { useAddContact, useDeleteContact, useBlockContact } from '../hooks'
-import { Avatar } from '../common/components'
+import { Avatar, Button } from '../common/components'
 
 type ProfileProps = {
   userProfile: User
+  handleClose: () => void
 }
 
-const Profile: React.FC<ProfileProps> = ({ userProfile }) => {
+const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
   const queryClient = useQueryClient()
+  const { openSettings } = usePartySettings()
   const addContact = useAddContact(userProfile)
   const deleteContact = useDeleteContact(userProfile)
   const blockContact = useBlockContact(userProfile)
@@ -42,14 +47,22 @@ const Profile: React.FC<ProfileProps> = ({ userProfile }) => {
       alignItems='center'
       maxWidth={400}
       p={5}
+      position='relative'
     >
+      <IconButton
+        aria-label='close'
+        onClick={handleClose}
+        sx={{ position: 'absolute', right: 16, top: 16 }}
+      >
+        <CloseIcon />
+      </IconButton>
       <Stack alignItems='center'>
         <div>
           <Typography variant='h5' align='center'>
             {userProfile?.name}
           </Typography>
           <Typography variant='h6' align='center'>
-            {userProfile?.username}
+            @{userProfile?.username}
           </Typography>
         </div>
         <Avatar
@@ -58,13 +71,24 @@ const Profile: React.FC<ProfileProps> = ({ userProfile }) => {
           sx={{ m: 2, width: 120, height: 120 }}
         />
       </Stack>
-      <Typography variant='body1' fontWeight={600} paragraph>
-        About me
+      <Typography variant='body1' fontWeight={600} gutterBottom>
+        About Me
       </Typography>
-      <Typography variant='body2' align='center' paragraph>
-        {userProfile?.about}
+      <Typography variant='body2' paragraph>
+        {/* {userProfile?.about} */}
+        I love going out to eat. If you invite me to a party, Iwill start
+        swiping in less than a minute after I receive the invite. I’m not a
+        picky eater at all and I’m always down to try new types of cuisines.
+        <br />
+        <br />
+        Hint:
+        <br />
+        {'I will ALWAYS “super-like” any good sushi spots :)'}
+        <br />
+        <br />
+        Let’s disover new places to eat together!
       </Typography>
-      <Box display='flex'>
+      <Box display='flex' mb={1}>
         {isContact(userProfile.uid) ? (
           <IconButton
             aria-label='delete-contact'
@@ -90,6 +114,21 @@ const Profile: React.FC<ProfileProps> = ({ userProfile }) => {
           <BlockIcon />
         </IconButton>
       </Box>
+      {isContact(userProfile.uid) && (
+        <Button
+          size='small'
+          disabled={isMutating}
+          endIcon={<LocalDiningTwoToneIcon />}
+          onClick={() => {
+            handleClose()
+            openSettings({
+              party: { members: [userProfile] },
+            })
+          }}
+        >
+          Start
+        </Button>
+      )}
     </Box>
   )
 }
@@ -119,20 +158,14 @@ export const ProfileViewProvider: React.FC<
     }
   }
 
+  const handleClose = () => {
+    setIsOpen(false)
+  }
+
   return (
     <>
-      <Dialog
-        open={isOpen && !!userProfile}
-        onClose={() => setIsOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: 'transparent',
-            boxShadow: 'none',
-            overflowY: 'initial',
-          },
-        }}
-      >
-        <Profile userProfile={userProfile!} />
+      <Dialog open={isOpen && !!userProfile} onClose={handleClose}>
+        <Profile userProfile={userProfile!} handleClose={handleClose} />
       </Dialog>
       <ProfileViewContext.Provider value={{ viewProfile }}>
         {props.children}

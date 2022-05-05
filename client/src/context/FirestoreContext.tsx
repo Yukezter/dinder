@@ -1,9 +1,10 @@
 import React from 'react'
-import { Timestamp, FieldValue } from 'firebase/firestore'
+import { Timestamp } from 'firebase/firestore'
 import { useQuery, useQueryClient, UseQueryResult } from 'react-query'
 
-import { usersService } from '../services'
+// import { usersService } from '../services'
 import { UsersService } from '../services/users'
+import { PartiesService } from '../services/parties'
 import { IAuthContext } from '../context/AuthContext'
 
 const sleepThenThrow = (ms: number = 3000) =>
@@ -29,8 +30,6 @@ export type User = {
 }
 
 export type Contacts = { [userId: string]: boolean }
-
-export type UserParties = { [partyId: string]: boolean }
 
 export interface Business {
   type: 'save' | 'block'
@@ -149,8 +148,8 @@ export const UserProvider: React.FC<{ id: string }> = props => {
       return
     }
 
-    const userRef = usersService.docs.user(id).ref
-    const unsubscribe = usersService.onDocumentSnapshot(userRef, snapshot => {
+    const userRef = UsersService.doc.user(id)
+    const unsubscribe = UsersService.onDocumentSnapshot(userRef, snapshot => {
       const data = snapshot.data()
       setUser(data)
     })
@@ -175,8 +174,8 @@ export const ContactsProvider: React.FC<{ id: string }> = props => {
       return
     }
 
-    const userRef = usersService.docs.contacts(id).ref
-    const unsubscribe = usersService.onDocumentSnapshot(userRef, snapshot => {
+    const userRef = UsersService.doc.contacts(id)
+    const unsubscribe = UsersService.onDocumentSnapshot(userRef, snapshot => {
       const data = snapshot.data() || {}
       setContacts(data)
     })
@@ -217,15 +216,15 @@ export const PartiesProvider: React.FC<{ id: string }> = props => {
   )
 
   React.useEffect(() => {
-    const partiesCollection = UsersService.collection.parties()
+    const partiesCollection = PartiesService.collection.parties()
     const q = partiesCollection.where('members', 'array-contains', id).query()
-    const unsubscribe = usersService.onCollectionSnapshot(q, snapshot => {
+    const unsubscribe = UsersService.onCollectionSnapshot(q, snapshot => {
       const newParties = snapshot.docs.map(doc => doc.data()).filter(Boolean)
 
       const populateParties = async () => {
         const partiesWithMembers = []
         for (const party of newParties) {
-          const members = await usersService.getUsers(party.members)
+          const members = await UsersService.getUsers(party.members)
           partiesWithMembers.push({
             ...party,
             members: members.docs.map(member => member.data()),
@@ -292,7 +291,7 @@ export const BusinessesProvider: React.FC<{ id: string }> = props => {
 
   React.useEffect(() => {
     const businessesRef = UsersService.collection.businesses(id).ref
-    const unsubscribe = usersService.onCollectionSnapshot(
+    const unsubscribe = UsersService.onCollectionSnapshot(
       businessesRef,
       snapshot => {
         const newBusinesses = snapshot.docs
@@ -336,8 +335,8 @@ export const PresenceProvider: React.FC = props => {
   )
 
   React.useEffect(() => {
-    const statusRef = usersService.collections.status.ref
-    const unsubscribe = usersService.onCollectionSnapshot(
+    const statusRef = UsersService.collection.status().ref
+    const unsubscribe = UsersService.onCollectionSnapshot(
       statusRef,
       snapshot => {
         const data = snapshot.docs.reduce<OnlineStatus>((all, doc) => {

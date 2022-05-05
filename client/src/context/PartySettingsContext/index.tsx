@@ -6,7 +6,7 @@ import Drawer from '@mui/material/Drawer'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 
-import { usersService } from '../../services'
+import { PartiesService } from '../../services/parties'
 import { useUser, User, PopulatedParty } from '../FirestoreContext'
 import { Button, TextField } from '../../common/components'
 import ContactSelect from './ContactSelect'
@@ -19,7 +19,7 @@ const useUpdateParty = () => {
   const queryClient = useQueryClient()
   return useMutation<PopulatedParty, unknown, PopulatedParty>(
     async data => {
-      await usersService.updateParty({
+      await PartiesService.updateParty({
         ...data,
         members: data.members.map(({ uid }) => uid),
       })
@@ -68,7 +68,7 @@ type PartySettingsState = {
 type PartyDrawerContext = {
   openSettings: (
     settings?: Omit<PartySettingsState, 'party'> & {
-      party?: PopulatedParty | undefined
+      party?: Partial<PopulatedParty> | undefined
     }
   ) => void
 }
@@ -121,7 +121,7 @@ export const PartySettingsProvider: React.FC = props => {
   const openSettings = React.useCallback(
     (
       options: Omit<PartySettingsState, 'party'> & {
-        party?: PopulatedParty
+        party?: Partial<PopulatedParty>
       } = {}
     ) => {
       const { party } = options
@@ -135,13 +135,17 @@ export const PartySettingsProvider: React.FC = props => {
         },
       }
 
+      if (party?.name) {
+        setName(party.name)
+      }
+
       setState({
         ...options,
         party: {
           ...partyDefaults,
           ...party,
           members: party
-            ? party.members.filter(({ uid }) => uid !== user.uid)
+            ? party.members!.filter(({ uid }) => uid !== user.uid)
             : [],
         },
       })
@@ -156,7 +160,7 @@ export const PartySettingsProvider: React.FC = props => {
       const { party } = state
 
       if (party.location) {
-        const id = party?.id || doc(usersService.collections.parties.ref).id
+        const id = party?.id || doc(PartiesService.collection.parties().ref).id
         updateParty.mutate(
           {
             ...party,
@@ -186,6 +190,7 @@ export const PartySettingsProvider: React.FC = props => {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleOnChangeName = React.useCallback(
     debounce((e: React.ChangeEvent<HTMLInputElement>) => {
       setName(e.target.value)
@@ -242,7 +247,7 @@ export const PartySettingsProvider: React.FC = props => {
                 shrink: true,
               }}
               placeholder='Name your party!'
-              defaultValue={state?.party.name}
+              defaultValue={name}
               onChange={handleOnChangeName}
             />
             <ContactSelect

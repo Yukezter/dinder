@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from 'react-query'
 import { FirestoreError } from 'firebase/firestore'
 
-import { usersService } from '../services'
+import { UsersService } from '../services/users'
 import { User } from '../context/FirestoreContext'
 
 const useDeleteContactMuation = (user?: User) => {
   const queryClient = useQueryClient()
   return useMutation<string, FirestoreError, User, User[]>(
-    async data => usersService.deleteContact(data.uid),
+    async data => UsersService.deleteContact(data.uid),
     {
       mutationKey: ['contacts', user?.uid],
       async onMutate(data) {

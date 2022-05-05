@@ -24,54 +24,57 @@ const persistenceTypes = {
   NONE: inMemoryPersistence,
 }
 
-class AuthService {
-  async setPersistence(type: Persistence['type']) {
+export class AuthService {
+  static setPersistence(type: Persistence['type']) {
     return setPersistence(auth, persistenceTypes[type])
   }
 
-  async signUp(data: any) {
+  static async signUp(data: any) {
     const res = await api.cloud.post<{ result: string }>('/signUp', { data })
     return res.data.result
   }
 
-  signIn(email: string, password: string) {
+  static signIn(email: string, password: string) {
     return signInWithEmailAndPassword(auth, email, password)
     // return createUserWithEmailAndPassword(auth, email, password)
   }
 
-  signInWithCustomToken(token: string) {
+  static signInWithCustomToken(token: string) {
     return signInWithCustomToken(auth, token)
   }
 
-  signOut() {
+  static signOut() {
     return signOut(auth)
   }
 
-  updateEmail(newEmail: string) {
+  static updateEmail(newEmail: string) {
     return updateEmail(auth.currentUser!, newEmail)
   }
 
-  updatePassword(newPassword: string) {
+  static updatePassword(newPassword: string) {
     return updatePassword(auth.currentUser!, newPassword)
   }
 
-  createRecaptchaVerifier(container: HTMLElement) {
+  static createRecaptchaVerifier(container: HTMLElement) {
     const options = { size: 'invisible', theme: 'dark' }
     return new RecaptchaVerifier(container, options, auth)
   }
 
-  verifyPhoneNumber(phoneNumber: string, appVerifier: RecaptchaVerifier) {
+  static verifyPhoneNumber(
+    phoneNumber: string,
+    appVerifier: RecaptchaVerifier
+  ) {
     const provider = new PhoneAuthProvider(auth)
     return provider.verifyPhoneNumber(phoneNumber, appVerifier)
   }
 
-  updatePhoneNumber(verificationId: string, code: string) {
+  static updatePhoneNumber(verificationId: string, code: string) {
     const credential = PhoneAuthProvider.credential(verificationId, code)
     return updatePhoneNumber(auth.currentUser!, credential)
   }
 }
 
-export default new AuthService()
+// export default new AuthService()
 
 // signInWithGoogle() {
 //   const googleAuthProvider = new GoogleAuthProvider()
