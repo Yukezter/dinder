@@ -15,6 +15,7 @@ import {
   useTransform,
   useMotionTemplate,
   MotionProps,
+  PanInfo,
 } from 'framer-motion'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -252,11 +253,7 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
 
   return (
     <Dialog {...dialogProps}>
-      {/* <Paper sx={{ p: 5 }}>
-        
-      </Paper> */}
       <Card sx={{ width: 345, p: 1 }}>
-        {/* <CardActionArea> */}
         <Typography variant='h5' component='div' align='center' py={2}>
           {match?.type === 'like' && "It's a match!"}
           {match?.type === 'super-like' && "It's a super match!"}
@@ -292,7 +289,6 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
             </Grid>
           </Grid>
         </CardContent>
-        {/* </CardActionArea> */}
         {/* <CardActions disableSpacing>
           <IconButton aria-label='add to favorites'>
             <FavoriteIcon />
@@ -325,8 +321,13 @@ const useToggleBusiness = (
     optimisticSaveRef.current = optimisticSave
   }, [optimisticSave])
 
+  const isDebouncingRef = React.useRef<boolean>(false)
   React.useEffect(() => {
-    if (business && businesses.data) {
+    isDebouncingRef.current = isDebouncing
+  }, [isDebouncing])
+
+  React.useEffect(() => {
+    if (business && businesses.data && !isDebouncingRef.current) {
       const newSave =
         [...businesses.data.saved, ...businesses.data.blocked].find(
           ({ id }) => id === business.id
@@ -373,7 +374,7 @@ const useToggleBusiness = (
       }
 
       setIsDebouncing(false)
-    }, 5000),
+    }, 2000),
     []
   )
 
@@ -406,8 +407,9 @@ const useToggleBusiness = (
 }
 
 type MatchListItemProps = {
-  isLoading: boolean
+  isLoading?: boolean
   match?: Match
+  // businesses: UseQueryResult<BusinessesData, unknown>
 }
 
 const MatchListItem: React.FC<MatchListItemProps> = props => {
@@ -422,21 +424,24 @@ const MatchListItem: React.FC<MatchListItemProps> = props => {
     <BusinessListItem
       key={match?.id}
       type={match?.type}
-      isLoading={isLoading || businesses.isLoading}
+      isLoading={isLoading}
       details={match?.details}
       secondaryAction={
-        <SwipeButton
-          Icon={FavoriteIcon}
-          onClick={handleToggleSaveBusiness}
-          sx={{
-            height: 24,
-            width: 24,
-            mr: 2,
-            '& svg': {
-              color: state === 'save' ? 'black' : 'white',
-            },
-          }}
-        />
+        !isLoading && (
+          <SwipeButton
+            Icon={FavoriteIcon}
+            onClick={handleToggleSaveBusiness}
+            disabled={businesses.isLoading}
+            sx={{
+              height: 24,
+              width: 24,
+              mr: 2,
+              '& svg': {
+                color: state === 'save' ? 'black' : 'white',
+              },
+            }}
+          />
+        )
       }
     />
   )
@@ -451,6 +456,7 @@ const Matches = ({ partyId }: { partyId: string }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const initialCall = React.useRef(true)
   const queryClient = useQueryClient()
+  // const businesses = useBusinesses()
   const matches = useQuery<MatchesByDate>(
     'matches',
     () => new Promise<MatchesByDate>(() => {}),
@@ -462,7 +468,10 @@ const Matches = ({ partyId }: { partyId: string }) => {
 
   React.useEffect(() => {
     const matchesCollection = PartiesService.collection.matches(partyId)
-    const matchesQuery = matchesCollection.orderBy('createdAt', 'desc').query()
+    const matchesQuery = matchesCollection
+      .where('members', 'array-contains', user.uid)
+      .orderBy('createdAt', 'desc')
+      .query()
     const unsubscribe = PartiesService.onCollectionSnapshot(
       matchesQuery,
       snapshot => {
@@ -532,6 +541,9 @@ const Matches = ({ partyId }: { partyId: string }) => {
     setIsOpen(false)
   }, [])
 
+  // const isLoading = !matches.isFetched || businesses.isLoading
+  const isLoading = !matches.isFetched
+
   return (
     <Box
       sx={{
@@ -556,18 +568,19 @@ const Matches = ({ partyId }: { partyId: string }) => {
       </Typography>
       <Box
         sx={{
-          overflowY: matches.isPlaceholderData ? 'hidden' : 'auto',
+          overflowY: isLoading ? 'hidden' : 'auto',
         }}
       >
         {matches.data!.map((group, index) => (
           <Box key={index}>
-            <DividerText text={group.date} />
+            {!isLoading && <DividerText text={group.date} />}
             <List>
               {group.matches.map((match, index) => (
                 <MatchListItem
                   key={match ? `${match?.id}-${index}` : index}
-                  isLoading={matches.isPlaceholderData}
+                  isLoading={isLoading}
                   match={match}
+                  // businesses={businesses}
                 />
               ))}
             </List>
@@ -667,33 +680,6 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
     </Paper>
   </Motion>
 )
-
-const useGetYelpBusinesses = (
-  params: PopulatedParty['params'] & PopulatedParty['location'],
-  options: UseInfiniteQueryOptions<YelpResponse>
-) => {
-  return useInfiniteQuery<YelpResponse>(
-    ['cards'],
-    async ({ pageParam = 0 }) => {
-      const data = await PartiesService.getYelpBusinesses({
-        ...params,
-        offset: pageParam,
-      })
-
-      data.businesses.forEach(business => {
-        const image = new Image()
-        image.src = business.image_url
-      })
-
-      return data
-    },
-    {
-      // cacheTime: 24 * 60 * 60 * 1000,
-      getNextPageParam: (lastPage, pages) => lastPage.total > pages.length * 20,
-      ...options,
-    }
-  )
-}
 
 type ActionButtonsProps = {
   businesses: UseQueryResult<BusinessesData, unknown>
@@ -805,6 +791,33 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
   )
 })
 
+const useGetYelpBusinesses = (
+  params: PopulatedParty['params'] & PopulatedParty['location'],
+  options: UseInfiniteQueryOptions<YelpResponse>
+) => {
+  return useInfiniteQuery<YelpResponse>(
+    ['cards'],
+    async ({ pageParam = 0 }) => {
+      const data = await PartiesService.getYelpBusinesses({
+        ...params,
+        offset: pageParam,
+      })
+
+      data.businesses.forEach(business => {
+        const image = new Image()
+        image.src = business.image_url
+      })
+
+      return data
+    },
+    {
+      // cacheTime: 24 * 60 * 60 * 1000,
+      getNextPageParam: (lastPage, pages) => lastPage.total > pages.length * 20,
+      ...options,
+    }
+  )
+}
+
 type InfiniteCardsProps = {
   party: PopulatedParty
 }
@@ -823,8 +836,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         const pages = yelpBusinesses.pages
         if (pages && pages.length > 0) {
           const lastPage = pages[pages.length - 1]
-          // Filter out any blocked businesses from last page
-          // of yelp businesses and add it to the cards lists
+          // Filter out businesses this user has blocked
           const newCards = lastPage.businesses.filter(yelpBusiness => {
             return (
               businesses.data!.blocked.findIndex(
@@ -834,7 +846,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
           })
 
           if (pages.length === 1 && cards.length === 0) {
-            setCards(newCards.splice(0, 3))
+            setCards(newCards.splice(0, 3).reverse())
           }
 
           setAllCards(prev => [...prev, ...newCards])
@@ -855,7 +867,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   })
 
   const [cards, setCards] = React.useState<YelpBusiness[]>(() => {
-    const initialCards = allCards.slice(0, 3)
+    const initialCards = allCards.slice(0, 3).reverse()
     setAllCards(prevAllCards => prevAllCards.slice(3))
     return initialCards
   })
@@ -957,7 +969,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   )
 
   const onDragEnd = React.useCallback(
-    (info: any) => {
+    (info: PanInfo) => {
       if (dragStart.axis === 'x') {
         if (info.offset.x >= 300) animateCardSwipe('like')
         else if (info.offset.x <= -300) animateCardSwipe('dislike')

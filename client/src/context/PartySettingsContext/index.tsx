@@ -97,6 +97,7 @@ export const PartySettingsProvider: React.FC = props => {
   const [name, setName] = React.useState<string>('')
 
   const resetState = React.useCallback(() => {
+    setName('')
     setState(null)
   }, [])
 

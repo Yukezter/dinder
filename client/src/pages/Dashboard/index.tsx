@@ -1,12 +1,6 @@
 import React from 'react'
-import { FirestoreError } from 'firebase/firestore'
 import { To, useNavigate } from 'react-router-dom'
-import {
-  useQuery,
-  useMutation,
-  useIsMutating,
-  useQueryClient,
-} from 'react-query'
+import { useIsMutating } from 'react-query'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import GlobalStyles from '@mui/material/GlobalStyles'
@@ -24,8 +18,6 @@ import Container from '@mui/material/Container'
 import Hidden from '@mui/material/Hidden'
 import GroupIcon from '@mui/icons-material/Group'
 import NotificationsIcon from '@mui/icons-material/Notifications'
-import AccountCircleIcon from '@mui/icons-material/AccountCircle'
-import SignOutIcon from '@mui/icons-material/Logout'
 import ListItem, { ListItemProps } from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemAvatar from '@mui/material/ListItemAvatar'
@@ -475,7 +467,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
       </Hidden>
       <Hidden smDown>
         <Typography variant='h6' mr='auto'>
-          Welcome back, Ana!
+          Welcome back, {user.username}!
         </Typography>
       </Hidden>
       <IconButton sx={{ ml: 'auto' }}>
@@ -487,9 +479,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
         aria-haspopup='true'
         aria-expanded={popper.open ? 'true' : undefined}
         onClick={popper.handlePopperToggle}
-        sx={{ ml: 1 }}
+        sx={{ ml: 1, p: 0 }}
       >
-        <AccountCircleIcon />
+        <Avatar alt={user.name} src={user.photoURL} size={40} />
       </IconButton>
       <Popper {...popper.getPopperProps()}>
         <ClickAwayListener onClickAway={popper.handlePopperClose}>
@@ -599,50 +591,3 @@ const DashboardLayout: React.FC = props => {
 }
 
 export default DashboardLayout
-
-// const [contactsState, setContactsState] = React.useState(() => {
-//   const numOfContacts = Object.keys(contactIds.data || {}).length
-//   return {
-//     isLoading: numOfContacts > 0,
-//     numOfContacts,
-//     numOfContactsLoaded: 0,
-//   }
-// })
-
-// const onLoaded = React.useCallback(() => {
-//   setContactsState(prevState => {
-//     const numOfContactsLoaded = prevState.numOfContactsLoaded + 1
-//     return {
-//       ...prevState,
-//       isLoading: prevState.numOfContacts === numOfContactsLoaded,
-//     }
-//   })
-// }, [])
-
-// React.useEffect(() => {
-//   if (firestore.contacts.length === 0) {
-//     return undefined
-//   }
-
-//   const unsubscribe = usersService.onContactsStatusSnapshot(
-//     firestore.contacts.map(({ uid }) => uid),
-//     snapshot => {
-//       snapshot.docs.forEach(doc => {
-//         const data = doc.data()
-//         if (data.state === 'online') {
-//           contactsOnline.add(doc.id)
-//         } else {
-//           contactsOnline.delete(doc.id)
-//         }
-//       })
-
-//       setContacts([
-//         ...firestore.contacts.filter(({ uid }) => contactsOnline.has(uid)),
-//         ...firestore.contacts.filter(({ uid }) => !contactsOnline.has(uid)),
-//       ])
-//     },
-//     err => console.log(err)
-//   )
-
-//   return unsubscribe
-// }, [firestore.contacts])

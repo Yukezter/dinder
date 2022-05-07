@@ -41,27 +41,17 @@ import MenuItem from '@mui/material/MenuItem'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import AddIcon from '@mui/icons-material/Add'
 
-import { usersService } from '../../services'
 import { usePopper, useLeaveParty } from '../../hooks'
 import { usePartySettings } from '../../context/PartySettingsContext'
 import {
   useUser,
   useParties,
   useBusinesses,
-  User,
-  Party,
   PopulatedParty,
   Business,
-  Businesses,
 } from '../../context/FirestoreContext'
 import { BusinessListItem } from '../../components'
-import {
-  Button,
-  ButtonLink,
-  Link,
-  Avatar,
-  AvatarGroup,
-} from '../../common/components'
+import { Link, Avatar, AvatarGroup } from '../../common/components'
 
 const TableToolbar: React.FC = () => {
   const { openSettings } = usePartySettings()
@@ -87,6 +77,9 @@ const TableToolbar: React.FC = () => {
         sx={theme => ({
           background: theme.palette.primary.main,
           color: theme.palette.background.paper,
+          ':hover': {
+            background: theme.palette.primary.dark,
+          },
         })}
         onClick={() => openSettings()}
       >
@@ -183,7 +176,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
     }
 
     return (
-      <Link to={`/party/${party?.id}`} display='block' state={{ party }}>
+      <Link to={`/party/${party?.id}`} display='block' p={2} state={{ party }}>
         {content}
       </Link>
     )
@@ -260,7 +253,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
     </>
   )
 
-  return <Card sx={{ p: isCreatePartyCard ? 0 : 2 }}>{wrap(content)}</Card>
+  return <Card>{wrap(content)}</Card>
 }
 
 interface PartiesTableProps {

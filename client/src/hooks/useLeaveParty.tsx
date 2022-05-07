@@ -11,10 +11,13 @@ const useLeaveParty = (party?: PopulatedParty) => {
       mutationKey: ['parties', party?.id],
       async onMutate(oldParty) {
         await queryClient.cancelQueries('parties')
+        const p = queryClient.getQueryData('parties')
+        console.log('query data', p)
 
         queryClient.setQueryData<PopulatedParty[]>(
           'parties',
           (oldParties = []) => {
+            console.log('oldParties', oldParties)
             return oldParties!.filter(({ id }) => id !== oldParty.id)
           }
         )

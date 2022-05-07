@@ -4,7 +4,12 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import * as functions from 'firebase-functions'
 import { UserRecord } from 'firebase-functions/v1/auth'
-import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore'
+import {
+  FieldPath,
+  FieldValue,
+  Timestamp,
+  Transaction,
+} from 'firebase-admin/firestore'
 import axios from 'axios'
 import { ValidateOption } from 'async-validator'
 import { AsyncValidationError } from 'async-validator/dist-types/util'
@@ -92,14 +97,10 @@ type Match = {
   id: string
   type: 'like' | 'super-like'
   createdAt: Timestamp
-  details: Business['details']
+  members: string[]
   lastToSwipe: string
+  details: Business['details']
 }
-
-// // Party session match history
-// interface Matches {
-//   [yelpId: string]: Business
-// }
 
 const usernames = firestore
   .collection('usernames')
@@ -110,10 +111,6 @@ const users = firestore.collection('users').withConverter(converter<User>())
 const contacts = firestore
   .collection('contacts')
   .withConverter(converter<{ [userId: string]: boolean }>())
-
-const userParties = firestore
-  .collection('user_parties')
-  .withConverter(converter<{ userId: true }>())
 
 const parties = firestore
   .collection('parties')
@@ -398,6 +395,71 @@ export const onFileDelete = functions.storage
 
 /* ON SWIPE */
 
+const checkForMatches = async (
+  tx: Transaction,
+  partyId: string,
+  memberIds: string[],
+  swipes: Swipes,
+  yelpId: string
+) => {
+  const superLikeMatch = memberIds.every(
+    id => swipes[id]?.action === 'super-like'
+  )
+
+  const likeMatch = memberIds.every(
+    id => swipes[id]?.action === 'like' || swipes[id]?.action === 'super-like'
+  )
+
+  const dislikeMatch = memberIds.every(id => swipes[id]?.action === 'dislike')
+
+  // TODO: notify party members when someone super-likes a business
+  // const singleSuperLike = memberIds.some(
+  //   id => swipes[id]?.action === 'super-like'
+  // )
+
+  if (superLikeMatch || likeMatch) {
+    const res = await yelpAPI.get(`/businesses/${yelpId}`)
+    const business = res.data
+    const details: Business['details'] = {
+      image: business.image_url,
+      name: business.name,
+      price: business.price,
+      rating: business.rating,
+      reviews: business.review_count,
+      categories: business.categories
+        .map(({ title }: { title: string }) => title)
+        .join(', '),
+      location: `${business.location.city}, ${business.location.state}`.concat(
+        `, ${business.location.country}`
+      ),
+      url: business.url,
+    }
+
+    const lastToSwipe = Object.keys(swipes).reduce((a, b) =>
+      swipes[a].timestamp.toMillis() > swipes[b].timestamp.toMillis() ? a : b
+    )
+
+    const matchesRef = matches(partyId).doc()
+    tx.set(
+      matchesRef,
+      {
+        id: business.id,
+        type: superLikeMatch ? 'super-like' : 'like',
+        createdAt: Timestamp.now(),
+        members: memberIds,
+        lastToSwipe,
+        details,
+      },
+      { merge: true }
+    )
+  }
+
+  if (superLikeMatch || likeMatch || dislikeMatch) {
+    const swipesRef = parties.doc(`${partyId}/swipes/${yelpId}`)
+    tx.delete(swipesRef)
+  }
+}
+
 export const onSwipe = functions.firestore
   .document('parties/{partyId}/swipes/{yelpId}')
   .onWrite(async (change, context) => {
@@ -408,78 +470,34 @@ export const onSwipe = functions.firestore
         const memberIdsSnapshot = await tx.get(memberIdsRef)
         const memberIds = Object.keys(memberIdsSnapshot.data() || {})
 
-        console.log(memberIds)
-
-        const swipes = change.after.data() as Swipes | undefined
-
-        if (swipes) {
-          const superLikeMatch = memberIds.every(
-            id => swipes[id]?.action === 'super-like'
-          )
-
-          const likeMatch = memberIds.every(
-            id =>
-              swipes[id]?.action === 'like' ||
-              swipes[id]?.action === 'super-like'
-          )
-
-          const dislikeMatch = memberIds.every(
-            id => swipes[id]?.action === 'dislike'
-          )
-
-          // const singleSuperLike = memberIds.some(
-          //   id => swipes[id]?.action === 'super-like'
-          // )
-
-          if (superLikeMatch || likeMatch) {
-            const res = await yelpAPI.get(`/businesses/${yelpId}`)
-            const business = res.data
-            const details: Business['details'] = {
-              image: business.image_url,
-              name: business.name,
-              price: business.price,
-              rating: business.rating,
-              reviews: business.review_count,
-              categories: business.categories
-                .map(({ title }: { title: string }) => title)
-                .join(', '),
-              location:
-                `${business.location.city}, ${business.location.state}`.concat(
-                  `, ${business.location.country}`
-                ),
-              url: business.url,
-            }
-
-            const lastToSwipe = Object.keys(swipes).reduce((a, b) =>
-              swipes[a].timestamp.toMillis() > swipes[b].timestamp.toMillis()
-                ? a
-                : b
-            )
-
-            const matchesRef = matches(partyId).doc()
-            tx.set(
-              matchesRef,
-              {
-                id: business.id,
-                type: superLikeMatch ? 'super-like' : 'like',
-                createdAt: Timestamp.now(),
-                details,
-                lastToSwipe,
-              },
-              { merge: true }
-            )
-          }
-
-          if (superLikeMatch || likeMatch || dislikeMatch) {
-            const swipesRef = parties.doc(`${partyId}/swipes/${yelpId}`)
-            tx.delete(swipesRef)
-          }
-        } else {
+        if (change.after.exists && memberIds.length > 1) {
+          const swipes = change.after.data() as Swipes
+          await checkForMatches(tx, partyId, memberIds, swipes, yelpId)
+        } else if (!change.after.exists) {
           console.log(`Party ${partyId}: swipes for ${yelpId} deleted!`)
         }
       })
     } catch (error) {
       console.log(error)
+    }
+  })
+
+export const onChangeMembers = functions.firestore
+  .document('members/{partyId}')
+  .onUpdate(async (change, context) => {
+    const memberIds = Object.keys(change.after.data() || {})
+
+    if (memberIds.length > 1) {
+      await firestore.runTransaction(async tx => {
+        const { partyId } = context.params
+        const swipesRef = swipes(partyId)
+        const swipesSnapshot = await tx.get(swipesRef)
+
+        for (const doc of swipesSnapshot.docs) {
+          const swipes = doc.data()
+          await checkForMatches(tx, partyId, memberIds, swipes, doc.id)
+        }
+      })
     }
   })
 
@@ -829,8 +847,12 @@ type LeavePartyDto = {
   partyId: string
 }
 
-export const leaveParty = functions.https.onCall(
-  async (data: LeavePartyDto, context) => {
+export const leaveParty = functions
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '2GB',
+  })
+  .https.onCall(async (data: LeavePartyDto, context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
@@ -846,37 +868,23 @@ export const leaveParty = functions.https.onCall(
         throw new functions.https.HttpsError('not-found', 'No party found')
       }
 
-      // Make sure authenticated user is party admin
-      if (uid === party.admin) {
-        throw new functions.https.HttpsError(
-          'invalid-argument',
-          'You cannot leave your own party!'
-        )
-      }
-
       const membersRef = members.doc(party.id)
 
+      // Delete party if admin leaves, otherwise just remove member
       if (uid === party.admin) {
-        // Delete party collections/subcollections
+        // Recusively delete the party document's subcollections
         await firebase_tools.firestore.delete(`parties/${party.id}`, {
           project: process.env.GCLOUD_PROJECT,
           recursive: true,
           yes: true,
           token: functions.config().fb.token,
+          force: true,
         })
 
-        // Delete members
+        tx.delete(partyRef)
+
         tx.delete(membersRef)
       } else {
-        // Delete swipes history
-        const swipesQuery = swipes(party.id).orderBy(uid)
-        const swipesSnapshot = await tx.get(swipesQuery)
-        swipesSnapshot.docs.forEach(doc => {
-          tx.update(doc.ref, {
-            [uid]: FieldValue.delete(),
-          })
-        })
-
         tx.update(partyRef, {
           members: FieldValue.arrayRemove(uid),
         })
@@ -886,8 +894,7 @@ export const leaveParty = functions.https.onCall(
         })
       }
     })
-  }
-)
+  })
 
 /* YELP BUSINESSES ENDPOINT */
 
@@ -932,7 +939,10 @@ export const getYelpBusinesses = functions.https.onCall(
 
       console.log(res.data.total)
 
-      return res.data
+      return {
+        ...res.data,
+        total: res.data.total > 1000 ? 1000 : res.data.total,
+      }
     } catch (error) {
       console.log(error)
     }
