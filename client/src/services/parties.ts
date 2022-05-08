@@ -22,6 +22,7 @@ import {
   Query,
   getDocs,
   WhereFilterOp,
+  increment,
 } from 'firebase/firestore'
 
 import api from '../app/api'
@@ -79,6 +80,7 @@ export class PartiesService {
     party: (id: string) => d<Party>('parties', id),
     swipes: (id1: string, id2: string) =>
       d<Swipes>('parties', id1, 'swipes', id2),
+    offsets: (id: string) => d<{ [userId: string]: number }>('offsets', id),
   }
 
   static getParty = async (partyId: string) => {
@@ -109,6 +111,27 @@ export class PartiesService {
     return res.data
   }
 
+  static getInitialOffset = async (userId: string, partyId: string) => {
+    const offsetsRef = this.doc.offsets(partyId)
+    const doc = await getDoc(offsetsRef)
+    return doc.exists() ? doc.data()[userId] || 0 : 0
+  }
+
+  static setInitialOffset = async (
+    userId: string,
+    partyId: string,
+    value: number
+  ) => {
+    const offsetsRef = this.doc.offsets(partyId)
+    await setDoc(
+      offsetsRef,
+      {
+        [userId]: value,
+      },
+      { merge: true }
+    )
+  }
+
   static getYelpBusinesses = async (
     options: Party['params'] &
       Party['location'] & {
@@ -122,9 +145,9 @@ export class PartiesService {
   }
 
   static swipe = async (
+    userId: string,
     partyId: string,
     yelpId: string,
-    userId: string,
     action: SwipeAction
   ) => {
     const swipesRef = this.doc.swipes(partyId, yelpId)

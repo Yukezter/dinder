@@ -6,8 +6,10 @@ import {
   useMutation,
   useInfiniteQuery,
   useQueryClient,
+  UseQueryOptions,
   UseInfiniteQueryOptions,
   UseQueryResult,
+  QueryKey,
 } from 'react-query'
 import {
   motion,
@@ -682,13 +684,14 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
 )
 
 type ActionButtonsProps = {
+  isLoading: boolean
   businesses: UseQueryResult<BusinessesData, unknown>
   currentYelpBusiness?: YelpBusiness
   animateCardSwipe: (action: SwipeAction) => void
 }
 
 const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
-  const { businesses, currentYelpBusiness, animateCardSwipe } = props
+  const { isLoading, businesses, currentYelpBusiness, animateCardSwipe } = props
 
   const business = React.useMemo(() => {
     if (!currentYelpBusiness) {
@@ -712,7 +715,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
     }
   }, [currentYelpBusiness])
 
-  const isDisabled = React.useMemo(() => !business, [business])
+  const noBusinesses = React.useMemo(() => !business, [business])
+  const isDisabled = isLoading || noBusinesses
 
   const {
     state,
@@ -791,16 +795,49 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
   )
 })
 
-const useGetYelpBusinesses = (
-  params: PopulatedParty['params'] & PopulatedParty['location'],
-  options: UseInfiniteQueryOptions<YelpResponse>
+const useInitialOffset = (
+  queryKey: QueryKey,
+  options?: UseQueryOptions<number>
 ) => {
-  return useInfiniteQuery<YelpResponse>(
-    ['cards'],
+  return useQuery<number>(
+    queryKey,
+    async ({ queryKey }) =>
+      PartiesService.getInitialOffset(
+        queryKey[1] as string,
+        queryKey[2] as string
+      ),
+    {
+      // enabled: false,
+      ...options,
+    }
+  )
+}
+
+type IndexedYelpBusiness = YelpBusiness & {
+  index: number
+}
+
+type IndexedYelpResponse = Omit<YelpResponse, 'businesses'> & {
+  businesses: IndexedYelpBusiness[]
+}
+
+const useGetYelpBusinesses = (
+  initialOffset: number,
+  params: PopulatedParty['params'] & PopulatedParty['location'],
+  options: UseInfiniteQueryOptions<YelpResponse, unknown, IndexedYelpResponse>
+) => {
+  return useInfiniteQuery<YelpResponse, unknown, IndexedYelpResponse>(
+    [
+      'cards',
+      params.place_id,
+      params.radius,
+      params.price,
+      params.categories.join(),
+    ],
     async ({ pageParam = 0 }) => {
       const data = await PartiesService.getYelpBusinesses({
         ...params,
-        offset: pageParam,
+        offset: initialOffset + pageParam,
       })
 
       data.businesses.forEach(business => {
@@ -812,7 +849,23 @@ const useGetYelpBusinesses = (
     },
     {
       // cacheTime: 24 * 60 * 60 * 1000,
-      getNextPageParam: (lastPage, pages) => lastPage.total > pages.length * 20,
+      select(data) {
+        return {
+          pageParams: data.pageParams,
+          pages: data.pages.map((page, pageIndex) => {
+            return {
+              ...page,
+              businesses: page.businesses.map((business, businessIndex) => ({
+                index: pageIndex * 20 + (businessIndex + 1),
+                ...business,
+              })),
+            }
+          }),
+        }
+      },
+      getNextPageParam: (lastPage, pages) => {
+        return lastPage.total > pages.length * 20 + initialOffset
+      },
       ...options,
     }
   )
@@ -825,13 +878,26 @@ type InfiniteCardsProps = {
 const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   const user = useUser()
   const businesses = useBusinesses()
+  const { location, params } = party
+
+  const initialOffset = useInitialOffset([
+    'cards',
+    user.uid,
+    party.id,
+    location.place_id,
+    params.radius,
+    params.price,
+    params.categories.join(),
+  ])
+
   const yelpBusinesses = useGetYelpBusinesses(
+    initialOffset.data!,
     {
       ...party.location,
       ...party.params,
     },
     {
-      enabled: !businesses.isLoading,
+      enabled: !businesses.isLoading && !initialOffset.isLoading,
       onSuccess(yelpBusinesses) {
         const pages = yelpBusinesses.pages
         if (pages && pages.length > 0) {
@@ -845,17 +911,18 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
             )
           })
 
-          if (pages.length === 1 && cards.length === 0) {
+          if (pages.length === 1) {
             setCards(newCards.splice(0, 3).reverse())
+            setAllCards(newCards)
+          } else {
+            setAllCards(prev => [...prev, ...newCards])
           }
-
-          setAllCards(prev => [...prev, ...newCards])
         }
       },
     }
   )
 
-  const [allCards, setAllCards] = React.useState<YelpBusiness[]>(() => {
+  const [allCards, setAllCards] = React.useState<IndexedYelpBusiness[]>(() => {
     if (!yelpBusinesses.data) {
       return []
     }
@@ -866,7 +933,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
       .flat()
   })
 
-  const [cards, setCards] = React.useState<YelpBusiness[]>(() => {
+  const [cards, setCards] = React.useState<IndexedYelpBusiness[]>(() => {
     const initialCards = allCards.slice(0, 3).reverse()
     setAllCards(prevAllCards => prevAllCards.slice(3))
     return initialCards
@@ -875,21 +942,37 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   const swipeMutation = useMutation<
     void,
     unknown,
-    { business: YelpBusiness; action: SwipeAction }
-  >(async data =>
-    PartiesService.swipe(party.id, data.business.id, user.uid, data.action)
-  )
+    {
+      action: SwipeAction
+      initialOffset: number
+      business: IndexedYelpBusiness
+    }
+  >(async data => {
+    await PartiesService.swipe(
+      user.uid,
+      party.id,
+      data.business.id,
+      data.action
+    )
+
+    await PartiesService.setInitialOffset(
+      user.uid,
+      party.id,
+      data.initialOffset + data.business.index
+    )
+  })
 
   const handleSwipe = React.useCallback(
-    (action: SwipeAction, business?: YelpBusiness) => {
+    (action: SwipeAction, business?: IndexedYelpBusiness) => {
       if (business) {
         swipeMutation.mutate({
           action,
+          initialOffset: initialOffset.data!,
           business,
         })
       }
     },
-    [swipeMutation]
+    [swipeMutation, initialOffset]
   )
 
   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } =
@@ -1016,13 +1099,22 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         alignItems='center'
         overflow='hidden'
       >
-        {yelpBusinesses.isLoading ? (
+        {initialOffset.isLoading || yelpBusinesses.isLoading ? (
           <Skeleton variant='rectangular' width='100%' height='100%' />
-        ) : (
+        ) : cards.length > 0 ? (
           renderCards()
+        ) : (
+          <Box maxWidth={300}>
+            <Typography variant='caption'>
+              No more businesses available. Wait for other party members to
+              swipe for matches, or change the party settings for a new set of
+              businesses.
+            </Typography>
+          </Box>
         )}
       </Box>
       <ActionButtons
+        isLoading={yelpBusinesses.isLoading}
         businesses={businesses}
         currentYelpBusiness={cards[cards.length - 1]}
         animateCardSwipe={animateCardSwipe}
@@ -1030,6 +1122,215 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
     </div>
   )
 }
+
+// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
+//   const user = useUser()
+//   const businesses = useBusinesses()
+//   const yelpBusinesses = useGetYelpBusinesses(
+//     {
+//       ...party.location,
+//       ...party.params,
+//     },
+//     {
+//       enabled: !businesses.isLoading,
+//       onSuccess(yelpBusinesses) {
+//         const pages = yelpBusinesses.pages
+//         if (pages && pages.length > 0) {
+//           const lastPage = pages[pages.length - 1]
+//           // Filter out businesses this user has blocked
+//           const newCards = lastPage.businesses.filter(yelpBusiness => {
+//             return (
+//               businesses.data!.blocked.findIndex(
+//                 business => business.id === yelpBusiness.id
+//               ) === -1
+//             )
+//           })
+
+//           if (pages.length === 1 && cards.length === 0) {
+//             setCards(newCards.splice(0, 3).reverse())
+//           }
+
+//           setAllCards(prev => [...prev, ...newCards])
+//         }
+//       },
+//     }
+//   )
+
+//   const [allCards, setAllCards] = React.useState<YelpBusiness[]>(() => {
+//     if (!yelpBusinesses.data) {
+//       return []
+//     }
+
+//     return yelpBusinesses.data.pages
+//       .flat()
+//       .map(({ businesses }) => businesses)
+//       .flat()
+//   })
+
+//   const [cards, setCards] = React.useState<YelpBusiness[]>(() => {
+//     const initialCards = allCards.slice(0, 3).reverse()
+//     setAllCards(prevAllCards => prevAllCards.slice(3))
+//     return initialCards
+//   })
+
+//   const swipeMutation = useMutation<
+//     void,
+//     unknown,
+//     { business: YelpBusiness; action: SwipeAction }
+//   >(async data =>
+//     PartiesService.swipe(party.id, data.business.id, user.uid, data.action)
+//   )
+
+//   const handleSwipe = React.useCallback(
+//     (action: SwipeAction, business?: YelpBusiness) => {
+//       if (business) {
+//         swipeMutation.mutate({
+//           action,
+//           business,
+//         })
+//       }
+//     },
+//     [swipeMutation]
+//   )
+
+//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } =
+//     yelpBusinesses
+
+//   React.useEffect(() => {
+//     const pageNum = data ? data.pages.length : 0
+//     if (allCards.length < 20 && hasNextPage && !isFetchingNextPage) {
+//       fetchNextPage({
+//         pageParam: pageNum * 20,
+//       })
+//     }
+//   }, [allCards, data, hasNextPage, isFetchingNextPage, fetchNextPage])
+
+//   const [dragStart, setDragStart] = React.useState<{
+//     axis: 'x' | 'y' | null
+//     animation: {
+//       x: number
+//       y: number
+//     }
+//   }>({
+//     axis: null,
+//     animation: { x: 0, y: 0 },
+//   })
+
+//   const x = useMotionValue(0)
+//   const y = useMotionValue(0)
+
+//   const scale = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [1, 0.5, 1]
+//   )
+
+//   const shadowBlur = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 25, 0]
+//   )
+
+//   const shadowOpacity = useTransform(
+//     dragStart.axis === 'x' ? x : y,
+//     [-800, 0, 800],
+//     [0, 0.2, 0]
+//   )
+
+//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
+
+//   const onDirectionLock = React.useCallback(
+//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
+//     [dragStart, setDragStart]
+//   )
+
+//   const animateCardSwipe = React.useCallback(
+//     (action: SwipeAction) => {
+//       handleSwipe(action, cards[cards.length - 1])
+
+//       if (action === 'like') {
+//         setDragStart({ ...dragStart, animation: { x: 800, y: 0 } })
+//       } else if (action === 'dislike') {
+//         setDragStart({ ...dragStart, animation: { x: -800, y: 0 } })
+//       } else if (action === 'super-like') {
+//         setDragStart({ ...dragStart, animation: { x: 0, y: -800 } })
+//       }
+
+//       setTimeout(() => {
+//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
+
+//         x.set(0)
+//         y.set(0)
+
+//         setCards([...allCards.slice(0, 1), ...cards.slice(0, cards.length - 1)])
+//         setAllCards(allCards.slice(1))
+//       }, 200)
+//     },
+//     [handleSwipe, dragStart, x, y, allCards, cards]
+//   )
+
+//   const onDragEnd = React.useCallback(
+//     (info: PanInfo) => {
+//       if (dragStart.axis === 'x') {
+//         if (info.offset.x >= 300) animateCardSwipe('like')
+//         else if (info.offset.x <= -300) animateCardSwipe('dislike')
+//       } else {
+//         if (info.offset.y <= -300) animateCardSwipe('super-like')
+//       }
+//     },
+//     [dragStart, animateCardSwipe]
+//   )
+
+//   const renderCards = () => {
+//     return cards.map((business, index) =>
+//       index === cards.length - 1 ? (
+//         <BusinessCard
+//           key={business.id ? `${business.id}-${index}` : index}
+//           business={business}
+//           style={{ x, y, zIndex: index }}
+//           onDirectionLock={axis => onDirectionLock(axis)}
+//           onDragEnd={(e, info) => onDragEnd(info)}
+//           animate={dragStart.animation}
+//         />
+//       ) : (
+//         <BusinessCard
+//           key={business.id ? `${business.id}-${index}` : index}
+//           business={business}
+//           style={{
+//             scale,
+//             boxShadow,
+//             zIndex: index,
+//           }}
+//         />
+//       )
+//     )
+//   }
+
+//   return (
+//     <div style={{ height: '100%', position: 'relative' }}>
+//       <Box
+//         height='100%'
+//         maxHeight={600}
+//         position='relative'
+//         display='flex'
+//         justifyContent='center'
+//         alignItems='center'
+//         overflow='hidden'
+//       >
+//         {yelpBusinesses.isLoading ? (
+//           <Skeleton variant='rectangular' width='100%' height='100%' />
+//         ) : (
+//           renderCards()
+//         )}
+//       </Box>
+//       <ActionButtons
+//         businesses={businesses}
+//         currentYelpBusiness={cards[cards.length - 1]}
+//         animateCardSwipe={animateCardSwipe}
+//       />
+//     </div>
+//   )
+// }
 
 type PartyActionsAreaProps = {
   party: PopulatedParty

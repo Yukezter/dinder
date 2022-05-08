@@ -107,7 +107,7 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
           </IconButton>
         )}
         <IconButton
-          aria-label='delete'
+          aria-label='delete-contact'
           onClick={() => blockContact.mutate(userProfile!)}
           disabled={isMutating}
         >

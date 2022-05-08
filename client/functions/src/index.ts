@@ -130,6 +130,11 @@ const swipes = (partyId: string) =>
     .collection(`parties/${partyId}/swipes`)
     .withConverter(converter<Swipes>())
 
+const offsets = (partyId: string) =>
+  firestore
+    .doc(`offsets/${partyId}`)
+    .withConverter(converter<{ [userId: string]: number }>())
+
 /* ---------- HELPER FUNCTIONS ---------- */
 
 const defaultPhotoURL = 'https://cdn-icons-png.flaticon.com/512/61/61205.png'
@@ -805,12 +810,34 @@ export const updateParty = functions.https.onCall(
       if (memberIds.length < 2) {
         throw new functions.https.HttpsError(
           'invalid-argument',
-          'Must invite at least 1 party member!'
+          'Party must have at least one member!'
         )
       }
 
-      // Create the party
       const partyRef = parties.doc(data.id)
+      const partySnapshot = await tx.get(partyRef)
+      const party = partySnapshot.data()
+      if (party) {
+        const isNewPlace = party.location.place_id !== data.location.place_id
+        const isNewRadius = party.params.radius !== data.params.radius
+        const isNewPrice = party.params.price !== data.params.price
+        const isNewCategories =
+          party.params.categories !== data.params.categories
+        const isNewParams =
+          isNewPlace || isNewRadius || isNewPrice || isNewCategories
+        if (isNewParams) {
+          const offsetsRef = offsets(party.id)
+          const newOffsets = party.members.reduce<{
+            [userId: string]: number
+          }>((acc, curr) => {
+            acc[curr] = 0
+            return acc
+          }, {})
+          tx.set(offsetsRef, newOffsets)
+        }
+      }
+
+      // Create/update the party
       tx.set(
         partyRef,
         {
@@ -869,6 +896,7 @@ export const leaveParty = functions
       }
 
       const membersRef = members.doc(party.id)
+      const offsetsRef = offsets(party.id)
 
       // Delete party if admin leaves, otherwise just remove member
       if (uid === party.admin) {
@@ -882,13 +910,12 @@ export const leaveParty = functions
         })
 
         tx.delete(partyRef)
-
         tx.delete(membersRef)
+        tx.delete(offsetsRef)
       } else {
         tx.update(partyRef, {
           members: FieldValue.arrayRemove(uid),
         })
-
         tx.update(membersRef, {
           [uid]: FieldValue.delete(),
         })
@@ -898,10 +925,15 @@ export const leaveParty = functions
 
 /* YELP BUSINESSES ENDPOINT */
 
+type GetYelpBusinessesDto = Party['params'] &
+  Party['location'] & {
+    offset: number
+  }
+
 const milesToMeters = (miles: number) => miles * 1609
 
 export const getYelpBusinesses = functions.https.onCall(
-  async (data: Party['params'] & Party['location'], context) => {
+  async (data: GetYelpBusinessesDto, context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
@@ -922,11 +954,10 @@ export const getYelpBusinesses = functions.https.onCall(
           : 'food,restaurants'
 
       const params = {
-        offset: 0,
         ...data,
         categories,
         radius,
-        limit: 20,
+        limit: data.offset > 980 ? 1000 - data.offset : 20,
         // term: 'food',
         // open_now: true,
       }

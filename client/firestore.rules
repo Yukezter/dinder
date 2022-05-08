@@ -60,10 +60,6 @@ service cloud.firestore {
       //   || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']))
     }
 
-    match /user_parties/{userId} {
-      allow read: if isAuthenticated();
-    }
-
     match /parties/{partyId} {
       allow read: if isAuthenticated();
 
@@ -88,6 +84,20 @@ service cloud.firestore {
       match /matches/{yelpId} {
         allow read: if hasAccess();
       }
+    }
+
+    match /offsets/{partyId} {
+      allow read: if hasAccess();
+      allow create: if hasAccess() &&
+        request.resource.data.keys().hasOnly([request.auth.uid]) &&
+        request.resource.data[request.auth.uid] is int &&
+        request.resource.data[request.auth.uid] >= 0 &&
+        request.resource.data[request.auth.uid] < 1000;
+      allow update: if hasAccess() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([request.auth.uid]) &&
+        request.resource.data[request.auth.uid] is int &&
+        request.resource.data[request.auth.uid] >= 0 &&
+        request.resource.data[request.auth.uid] < 1000;
     }
   }
 }

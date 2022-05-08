@@ -1,17 +1,9 @@
 import React from 'react'
-import { QuerySnapshot } from 'firebase/firestore'
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-  useIsMutating,
-} from 'react-query'
+import { useIsMutating } from 'react-query'
 import { DateTime } from 'luxon'
 import { useTable, useSortBy, Column, CellProps } from 'react-table'
-import { alpha } from '@mui/material/styles'
 import { visuallyHidden } from '@mui/utils'
 import Box from '@mui/material/Box'
-import Container from '@mui/material/Container'
 import Stack from '@mui/material/Stack'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
@@ -41,7 +33,7 @@ import MenuItem from '@mui/material/MenuItem'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import AddIcon from '@mui/icons-material/Add'
 
-import { usePopper, useLeaveParty } from '../../hooks'
+import { usePopper, useLeaveParty, useDeleteBusiness } from '../../hooks'
 import { usePartySettings } from '../../context/PartySettingsContext'
 import {
   useUser,
@@ -398,6 +390,13 @@ const a11yProps = (index: number) => ({
 
 const BusinessLists = () => {
   const businesses = useBusinesses()
+  const deleteBusiness = useDeleteBusiness()
+
+  const handleDeleteBusiness = (business?: Business) => () => {
+    if (business) {
+      deleteBusiness.mutate(business)
+    }
+  }
 
   const saved = React.useMemo(() => {
     if (!businesses.data) {
@@ -438,7 +437,7 @@ const BusinessLists = () => {
             key={business?.id || index}
             details={business?.details}
             secondaryAction={
-              <IconButton>
+              <IconButton onClick={handleDeleteBusiness(business)}>
                 <DeleteIcon />
               </IconButton>
             }

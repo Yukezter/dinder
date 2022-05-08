@@ -12,7 +12,7 @@ const PriceRange = React.memo(
     const handlePriceRangeChange = (priceLevel: number) => () => {
       setValue(priceLevel)
       if (onChange) {
-        onChange(value)
+        onChange(priceLevel)
       }
     }
     console.log('PriceRange')

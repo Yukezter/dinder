@@ -7,7 +7,7 @@ import { User } from '../context/FirestoreContext'
 const useBlockContactMuation = (user?: User) => {
   const queryClient = useQueryClient()
   return useMutation<string, FirestoreError, User, User[]>(
-    async data => UsersService.addContact(data.uid),
+    async data => UsersService.blockContact(data.uid),
     {
       mutationKey: ['contacts', user?.uid],
       async onMutate(data) {
