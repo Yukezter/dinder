@@ -120,10 +120,8 @@ const SignIn: React.FC = () => {
   const onSubmit: SubmitHandler<SignInFormInputs> = data => {
     const checked = checkboxRef.current!.value
     const persistence = checked ? 'LOCAL' : 'SESSION'
-    mutation.mutate(data, {
-      onSuccess: () => {
-        AuthService.setPersistence(persistence)
-      },
+    AuthService.setPersistence(persistence).then(() => {
+      mutation.mutate(data)
     })
   }
 
@@ -244,7 +242,7 @@ const LandingImg = styled('img')(({ theme }) => ({
 const Landing = () => {
   const auth = useAuth()
 
-  if (auth.user) {
+  if (auth.user && auth.claims?.accessLevel !== undefined) {
     return <Navigate to='/dashboard' replace />
   }
 

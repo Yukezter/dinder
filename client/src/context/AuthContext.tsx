@@ -30,6 +30,11 @@ export const useAuth = () => React.useContext(AuthContext)
 export const AuthProvider: React.FC = ({ children }) => {
   const [state, setState] = React.useState<IAuthContext>()
 
+  const hasCustomClaims = React.useRef<boolean>(false)
+  React.useEffect(() => {
+    hasCustomClaims.current = state?.claims?.accessLevel !== undefined
+  }, [state?.claims?.accessLevel])
+
   // Update auth state whenever user signs in / signs out
   // Listen for metadata changes and update token
   React.useEffect(() => {
@@ -47,12 +52,15 @@ export const AuthProvider: React.FC = ({ children }) => {
         user.getIdTokenResult().then(({ claims }) => {
           setState({ user, claims })
 
+          console.log(claims)
+
           metadataRef = ref(db, `metadata/${user.uid}/refreshTime`)
           let afterFirstCall = false
 
           callback = () => {
-            if (afterFirstCall) {
+            if ((claims?.accessLevel as number | undefined) !== 1) {
               user.getIdTokenResult(true).then(({ claims }) => {
+                console.log(claims)
                 setState(prev => ({ ...prev, claims }))
               })
             }

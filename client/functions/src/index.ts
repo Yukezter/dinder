@@ -227,7 +227,7 @@ const updateCustomUserClaims = async (uid: string, data: CustomUserClaims) => {
 export const onCreateUser = functions.auth.user().onCreate(async user => {
   // A Firestore user account with default settings will be created along with
   // an access level of '0' until the user has met the registration requirements.
-  users.doc(user.uid).create({
+  await users.doc(user.uid).create({
     uid: user.uid,
     photoURL: user.photoURL || null,
     name: user.displayName || null,
@@ -554,72 +554,72 @@ export const onChangeMembers = functions.firestore
 
 /* SIGN UP */
 
-type SignUpDto = {
-  name: string
-  username: string
-  email: string
-  password: string
-}
+// type SignUpDto = {
+//   name: string
+//   username: string
+//   email: string
+//   password: string
+// }
 
-export const signUp = functions.https.onCall(async (data: SignUpDto) => {
-  try {
-    await validators.signUp.validate(data, { firstFields: true })
-  } catch (e) {
-    const validationError = e as AsyncValidationError
-    throw new functions.https.HttpsError(
-      'invalid-argument',
-      validationError.message,
-      validationError.errors
-    )
-  }
+// export const signUp = functions.https.onCall(async (data: SignUpDto) => {
+//   try {
+//     await validators.signUp.validate(data, { firstFields: true })
+//   } catch (e) {
+//     const validationError = e as AsyncValidationError
+//     throw new functions.https.HttpsError(
+//       'invalid-argument',
+//       validationError.message,
+//       validationError.errors
+//     )
+//   }
 
-  try {
-    const user = await auth.createUser({
-      displayName: data.name,
-      email: data.email,
-      password: data.password,
-    })
+//   try {
+//     const user = await auth.createUser({
+//       displayName: data.name,
+//       email: data.email,
+//       password: data.password,
+//     })
 
-    const batch = firestore.batch()
+//     const batch = firestore.batch()
 
-    const usernameRef = usernames.doc(data.username)
-    batch.create(usernameRef, { uid: user.uid })
-    batch.create(users.doc(user.uid), {
-      uid: user.uid,
-      photoURL: defaultPhotoURL,
-      name: data.name,
-      username: data.username,
-      about: '',
-    })
+//     const usernameRef = usernames.doc(data.username)
+//     batch.create(usernameRef, { uid: user.uid })
+//     batch.create(users.doc(user.uid), {
+//       uid: user.uid,
+//       photoURL: defaultPhotoURL,
+//       name: data.name,
+//       username: data.username,
+//       about: '',
+//     })
 
-    await search
-      .partialUpdateObject({
-        objectID: user.uid,
-        photoURL: defaultPhotoURL,
-        name: data.name,
-        username: data.username,
-        about: '',
-      })
-      .wait()
+//     await search
+//       .partialUpdateObject({
+//         objectID: user.uid,
+//         photoURL: defaultPhotoURL,
+//         name: data.name,
+//         username: data.username,
+//         about: '',
+//       })
+//       .wait()
 
-    await batch.commit()
+//     await batch.commit()
 
-    await updateCustomUserClaims(user.uid, {
-      accessLevel: 1,
-    })
+//     await updateCustomUserClaims(user.uid, {
+//       accessLevel: 1,
+//     })
 
-    return auth.createCustomToken(user.uid)
-  } catch (error) {
-    console.log(error)
-    throw new functions.https.HttpsError(
-      'internal',
-      'Something went wrong...',
-      {
-        details: error,
-      }
-    )
-  }
-})
+//     return auth.createCustomToken(user.uid)
+//   } catch (error) {
+//     console.log(error)
+//     throw new functions.https.HttpsError(
+//       'internal',
+//       'Something went wrong...',
+//       {
+//         details: error,
+//       }
+//     )
+//   }
+// })
 
 /* UPDATE USER */
 

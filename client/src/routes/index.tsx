@@ -31,7 +31,7 @@ const ProtectedRoute = () => {
     return <Navigate to='/' state={{ from: location }} />
   }
 
-  if (auth.claims?.accessLevel !== 1) {
+  if (auth.claims?.accessLevel === 0) {
     return <FinishAccountSetup />
   }
 
