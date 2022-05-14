@@ -11,11 +11,7 @@ import {
   DatabaseReference,
   push,
 } from 'firebase/database'
-import {
-  doc,
-  serverTimestamp as serverFirestoreTimestamp,
-  setDoc,
-} from 'firebase/firestore'
+import { doc, setDoc } from 'firebase/firestore'
 import { auth, firestore, db } from '../app/firebase'
 
 export type AuthUser = User
@@ -56,7 +52,7 @@ export const AuthProvider: React.FC = ({ children }) => {
 
           callback = () => {
             if (afterFirstCall) {
-              user.getIdTokenResult().then(({ claims }) => {
+              user.getIdTokenResult(true).then(({ claims }) => {
                 setState(prev => ({ ...prev, claims }))
               })
             }
@@ -113,7 +109,7 @@ export const AuthProvider: React.FC = ({ children }) => {
     })
 
     return unsubscribe
-  }, [state])
+  }, [state?.user])
 
   // Don't render until Firebase user is determined
   if (state === undefined) {

@@ -9,11 +9,12 @@ import { FirebaseError } from 'firebase/app'
 import { RecaptchaVerifier } from 'firebase/auth'
 import { UploadResult } from 'firebase/storage'
 import { useMutation } from 'react-query'
+import { useSnackbar, SnackbarKey } from 'notistack'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import { styled, useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import Box from '@mui/material/Box'
-import Dialog, { DialogProps } from '@mui/material/Dialog'
+import Dialog from '@mui/material/Dialog'
 import Paper from '@mui/material/Paper'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
@@ -21,6 +22,7 @@ import ListItemIcon from '@mui/material/ListItemIcon'
 import Grid from '@mui/material/Grid'
 import Stack from '@mui/material/Stack'
 import Divider from '@mui/material/Divider'
+import Alert from '@mui/material/Alert'
 import Hidden from '@mui/material/Hidden'
 import ButtonBase from '@mui/material/ButtonBase'
 import Typography from '@mui/material/Typography'
@@ -30,9 +32,8 @@ import ArrowDownIcon from '@mui/icons-material/ArrowDropDown'
 import CheckIcon from '@mui/icons-material/Check'
 
 import { AuthService } from '../../services/auth'
-// import { usersService } from '../../services'
 import { UsersService } from '../../services/users'
-import { IAuthContext, useAuth } from '../../context/AuthContext'
+import { IAuthContext } from '../../context/AuthContext'
 import { useUser } from '../../context/FirestoreContext'
 import { TextField, Button, Link, Avatar } from '../../common/components'
 
@@ -81,14 +82,14 @@ export const GeneralSettings: React.FC = () => {
   }
 
   React.useEffect(() => {
-    if (user.name) {
+    if (!user.name) {
       form.setError('name', {
         type: 'required',
         message: 'A name is required',
       })
     }
 
-    if (user.username) {
+    if (!user.username) {
       form.setError('username', {
         type: 'required',
         message: 'A username is required',
@@ -421,8 +422,6 @@ export const PasswordSettings: React.FC = () => {
 const ProfilePhotoSettings: React.FC = () => {
   const user = useUser()
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
-
   const mutation = useMutation<UploadResult, FirebaseError, File>(
     async file => {
       const userId = user.uid
@@ -430,6 +429,7 @@ const ProfilePhotoSettings: React.FC = () => {
     }
   )
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const changePhoto = () => fileInputRef.current?.click()
 
   const handleChangePhoto: React.ChangeEventHandler<HTMLInputElement> = e => {
@@ -461,7 +461,8 @@ const ProfilePhotoSettings: React.FC = () => {
                 color: t => t.palette.text.primary,
                 cursor: 'pointer',
               }}
-              imgProps={{ onClick: changePhoto }}
+              onClick={changePhoto}
+              // imgProps={{ onClick: changePhoto }}
             >
               <AddIcon />
             </Avatar>
@@ -471,7 +472,8 @@ const ProfilePhotoSettings: React.FC = () => {
             alt='Your profile photo'
             src={user.photoURL}
             sx={{ width: 80, height: 80, cursor: 'pointer' }}
-            imgProps={{ onClick: changePhoto }}
+            onClick={changePhoto}
+            // imgProps={{ onClick: changePhoto }}
           />
           <input
             ref={fileInputRef}
@@ -493,7 +495,7 @@ const ProfilePhotoSettings: React.FC = () => {
 }
 
 const Root = styled('div')(({ theme }) => ({
-  marginBottom: 100,
+  paddingBottom: 80,
   '& ul li': {
     height: theme.spacing(3),
   },
@@ -660,8 +662,25 @@ const SettingsMenu: React.FC<{ auth: Required<IAuthContext> }> = props => {
 }
 
 const Settings: React.FC = () => {
+  const { auth } = useOutletContext<{ auth: Required<IAuthContext> }>()
   const navigate = useNavigate()
-  const auth = useAuth() as Required<IAuthContext>
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar()
+  const snackbarKey = React.useRef<SnackbarKey>()
+
+  React.useEffect(() => {
+    if (auth.claims?.accessLevel !== 1) {
+      snackbarKey.current = enqueueSnackbar(
+        'You must submit a name AND username in order to continue!',
+        {
+          preventDuplicate: true,
+          variant: 'warning',
+          persist: true,
+        }
+      )
+    } else if (snackbarKey.current) {
+      closeSnackbar(snackbarKey.current)
+    }
+  }, [auth.claims?.accessLevel])
 
   const cancelSettings = () => {
     navigate('/dashboard')

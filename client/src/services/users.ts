@@ -83,6 +83,7 @@ export class UsersService {
   }
 
   static doc = {
+    usernames: (username: string) => d<Username>('usernames', username),
     user: (userId: string) => d<User>('users', userId),
     contacts: (userId: string) => d<Contacts>('contacts', userId),
     businesses: (userId: string, yelpId: string) =>
@@ -91,6 +92,12 @@ export class UsersService {
 
   static async getCurrentUser() {
     return auth.currentUser
+  }
+
+  static async usernameExists(username: string) {
+    const usernamesRef = this.doc.usernames(username)
+    const usernameDoc = await getDoc(usernamesRef)
+    return usernameDoc.exists()
   }
 
   static async getUser(userId: string) {
@@ -122,7 +129,11 @@ export class UsersService {
     return deleteDoc(businessesRef)
   }
 
-  static updateUser = async (data: any) => {
+  static updateUser = async (
+    data: Pick<User, 'name' | 'username'> & {
+      about?: string
+    }
+  ) => {
     const res = await api.cloud.post<void>('/updateUser', { data })
     return res.data
   }

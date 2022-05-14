@@ -1,8 +1,8 @@
 import React from 'react'
 import { Timestamp } from 'firebase/firestore'
 import { useQuery, useQueryClient, UseQueryResult } from 'react-query'
+import CircularProgress from '@mui/material/CircularProgress'
 
-// import { usersService } from '../services'
 import { UsersService } from '../services/users'
 import { PartiesService } from '../services/parties'
 import { IAuthContext } from '../context/AuthContext'
@@ -150,7 +150,7 @@ export const UserProvider: React.FC<{ id: string }> = props => {
 
     const userRef = UsersService.doc.user(id)
     const unsubscribe = UsersService.onDocumentSnapshot(userRef, snapshot => {
-      const data = snapshot.data()
+      const data = snapshot.data() || ({} as User)
       setUser(data)
     })
 
@@ -372,7 +372,7 @@ const Loading: React.FC = ({ children }) => {
   const parties = useParties()
 
   if (!user || !contacts || !parties) {
-    return <div>Loading...</div>
+    return <CircularProgress sx={{ m: 'auto' }} />
   }
 
   return <>{children}</>

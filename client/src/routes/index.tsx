@@ -5,7 +5,13 @@ import {
   Navigate,
   Outlet,
 } from 'react-router-dom'
+import GlobalStyles from '@mui/material/GlobalStyles'
+import Box from '@mui/material/Box'
+import Zoom from '@mui/material/Zoom'
+import { TransitionProps } from '@mui/material/transitions'
+import { SnackbarProvider } from 'notistack'
 
+import { FinishAccountSetup } from '../components'
 import { useAuth, IAuthContext } from '../context/AuthContext'
 import { FirestoreProviders } from '../context/FirestoreContext'
 import { ProfileViewProvider } from '../context/ProfileViewContext'
@@ -21,18 +27,30 @@ const ProtectedRoute = () => {
   const location = useLocation()
   const auth = useAuth()
 
-  if (!auth.user) {
+  if (!auth.user || auth.claims?.accessLevel === undefined) {
     return <Navigate to='/' state={{ from: location }} />
+  }
+
+  if (auth.claims?.accessLevel !== 1) {
+    return <FinishAccountSetup />
   }
 
   return (
     <FirestoreProviders auth={auth as Required<IAuthContext>}>
       <PartySettingsProvider>
         <ProfileViewProvider>
-          <DashboardLayout>
-            <Outlet />
-            {/* <Outlet context={{ auth } as { auth: Required<IAuthContext> }} /> */}
-          </DashboardLayout>
+          <SnackbarProvider
+            maxSnack={1}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            TransitionComponent={Zoom as React.ComponentType<TransitionProps>}
+          >
+            <DashboardLayout>
+              <Outlet context={{ auth } as { auth: Required<IAuthContext> }} />
+            </DashboardLayout>
+          </SnackbarProvider>
         </ProfileViewProvider>
       </PartySettingsProvider>
     </FirestoreProviders>
@@ -47,7 +65,16 @@ const Routes = () => {
     },
     {
       path: '/*',
-      element: <ProtectedRoute />,
+      element: (
+        <Box height='100vh' display='flex'>
+          <GlobalStyles
+            styles={{
+              body: { background: '#f8fafb' },
+            }}
+          />
+          <ProtectedRoute />
+        </Box>
+      ),
       children: [
         {
           path: 'dashboard',

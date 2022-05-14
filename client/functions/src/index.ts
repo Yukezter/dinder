@@ -2,21 +2,53 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+import * as admin from 'firebase-admin'
 import * as functions from 'firebase-functions'
-import { UserRecord } from 'firebase-functions/v1/auth'
 import {
   FieldPath,
   FieldValue,
   Timestamp,
   Transaction,
 } from 'firebase-admin/firestore'
+import algoliasearch from 'algoliasearch'
 import axios from 'axios'
 import { ValidateOption } from 'async-validator'
 import { AsyncValidationError } from 'async-validator/dist-types/util'
 
-import { auth, firestore, db, storage, search, yelp } from './app'
+// import { auth, firestore, db, storage, search, yelp } from './app'
 import { converter } from './util'
 import validators from './validators'
+
+// eslint-disable-next-line camelcase
+const firebase_tools = require('firebase-tools')
+
+// Firebase Admin
+admin.initializeApp()
+
+// Auth
+const auth = admin.auth()
+
+// Storage
+const storage = admin.storage()
+
+// Firestore
+const firestore = admin.firestore()
+
+// Database
+const db = admin.database()
+
+// Algolia
+const client = algoliasearch(
+  functions.config().algolia.id,
+  functions.config().algolia.key
+)
+
+const search = client.initIndex('dev_users')
+
+const yelp = {
+  id: functions.config().yelp.client_id,
+  token: functions.config().yelp.token,
+}
 
 const yelpAPI = axios.create({
   baseURL: 'https://api.yelp.com/v3',
@@ -24,9 +56,6 @@ const yelpAPI = axios.create({
     Authorization: `Bearer ${yelp.token}`,
   },
 })
-
-// eslint-disable-next-line camelcase
-const firebase_tools = require('firebase-tools')
 
 // Username used as doc id to ensure uniqueness
 interface Username {
@@ -36,10 +65,10 @@ interface Username {
 // Public user information
 interface User {
   uid: string
-  photoURL: string
-  name: string
-  username: string
-  about: string
+  photoURL: string | null
+  name: string | null
+  username: string | null
+  about: string | null
 }
 
 // Party information
@@ -139,33 +168,45 @@ const offsets = (partyId: string) =>
 
 const defaultPhotoURL = 'https://cdn-icons-png.flaticon.com/512/61/61205.png'
 
-const createUser = async (user: UserRecord, batch = firestore.batch()) => {
-  const { uid } = user
-  const photoURL = user.photoURL || defaultPhotoURL
-  const name = user.displayName || ''
-  const username = ''
-  const about = ''
+// const createUser = async (user: UserRecord, batch = firestore.batch()) => {
+//   const { uid } = user
+//   const photoURL = user.photoURL || defaultPhotoURL
+//   const name = user.displayName || ''
+//   const username = ''
+//   const about = ''
 
-  batch.create(users.doc(uid), {
-    uid,
-    photoURL,
-    name,
-    username,
-    about,
-  })
+//   batch.create(users.doc(uid), {
+//     uid,
+//     photoURL,
+//     name,
+//     username,
+//     about,
+//   })
 
-  await batch.commit()
+//   await search
+//     .partialUpdateObject({
+//       objectID: uid,
+//       photoURL,
+//       name,
+//       username,
+//       about,
+//     })
+//     .wait()
 
-  await search
-    .partialUpdateObject({
-      objectID: uid,
-      photoURL,
-      name,
-      username,
-      about,
-    })
-    .wait()
-}
+//   await batch.commit()
+// }
+
+// const throwIfUnauthenticated = (context: functions.https.CallableContext) => {
+//   if (!context.auth || !context.auth.uid) {
+//     throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+//   }
+// }
+
+// const throwIfNoAccess = (context: functions.https.CallableContext) => {
+//   if (context.auth?.token?.accessLevel !== 1) {
+//     throw new functions.https.HttpsError('unauthenticated', 'Access denied')
+//   }
+// }
 
 type CustomUserClaims = {
   accessLevel: 0 | 1
@@ -184,10 +225,15 @@ const updateCustomUserClaims = async (uid: string, data: CustomUserClaims) => {
 /* ON CREATE USER */
 
 export const onCreateUser = functions.auth.user().onCreate(async user => {
-  // In case the custom signIn isn't used, a Firestore user account with default
-  // settings will be created with an access level of '0' until the user has met
-  // the registration requirements.
-  await createUser(user)
+  // A Firestore user account with default settings will be created along with
+  // an access level of '0' until the user has met the registration requirements.
+  users.doc(user.uid).create({
+    uid: user.uid,
+    photoURL: user.photoURL || null,
+    name: user.displayName || null,
+    username: null,
+    about: null,
+  })
 
   await updateCustomUserClaims(user.uid, {
     accessLevel: 0,
@@ -332,15 +378,12 @@ export const onUpdateUser = functions.firestore
       // Update Algolia user data
       await search.partialUpdateObject({
         objectID: uid,
-        photoURL: newData.photoURL,
-        name: newData.name,
-        username: newData.username,
-        about: newData.about,
+        photoURL: newData.photoURL || null,
+        name: newData.name || null,
+        username: newData.username || null,
+        about: newData.about || null,
       })
     }
-
-    console.log(change.before.isEqual(change.after))
-    console.log(newData)
   })
 
 /* ---------- STORAGE EVENT TRIGGERS ---------- */
@@ -348,6 +391,7 @@ export const onUpdateUser = functions.firestore
 /* ON FILE UPLOAD */
 
 export const onFileUpload = functions.storage
+  .bucket()
   .object()
   .onFinalize(async object => {
     const { contentType, name } = object
@@ -511,10 +555,10 @@ export const onChangeMembers = functions.firestore
 /* SIGN UP */
 
 type SignUpDto = {
-  name?: string
-  username?: string
-  email?: string
-  password?: string
+  name: string
+  username: string
+  email: string
+  password: string
 }
 
 export const signUp = functions.https.onCall(async (data: SignUpDto) => {
@@ -536,28 +580,55 @@ export const signUp = functions.https.onCall(async (data: SignUpDto) => {
       password: data.password,
     })
 
-    const { uid } = user
-
-    const usernameRef = usernames.doc(data.username!)
     const batch = firestore.batch()
-    batch.create(usernameRef, { uid })
-    await createUser(user, batch)
 
-    await updateCustomUserClaims(uid, {
+    const usernameRef = usernames.doc(data.username)
+    batch.create(usernameRef, { uid: user.uid })
+    batch.create(users.doc(user.uid), {
+      uid: user.uid,
+      photoURL: defaultPhotoURL,
+      name: data.name,
+      username: data.username,
+      about: '',
+    })
+
+    await search
+      .partialUpdateObject({
+        objectID: user.uid,
+        photoURL: defaultPhotoURL,
+        name: data.name,
+        username: data.username,
+        about: '',
+      })
+      .wait()
+
+    await batch.commit()
+
+    await updateCustomUserClaims(user.uid, {
       accessLevel: 1,
     })
 
-    return auth.createCustomToken(uid)
+    return auth.createCustomToken(user.uid)
   } catch (error) {
     console.log(error)
-    throw new functions.https.HttpsError('internal', 'Something went wrong...')
+    throw new functions.https.HttpsError(
+      'internal',
+      'Something went wrong...',
+      {
+        details: error,
+      }
+    )
   }
 })
 
 /* UPDATE USER */
 
+type UpdateUserDto = Pick<User, 'name' | 'username'> & {
+  about?: string
+}
+
 export const updateUser = functions.https.onCall(
-  async (data: Pick<User, 'name' | 'username' | 'about'>, context) => {
+  async (data: UpdateUserDto, context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
@@ -565,12 +636,10 @@ export const updateUser = functions.https.onCall(
     const { uid } = context.auth
 
     try {
-      const result = await validators.updateUser.validate(data, {
+      await validators.updateUser.validate(data, {
         firstFields: true,
         uid,
       } as ValidateOption)
-
-      console.log(JSON.stringify(result, null, 2))
     } catch (e) {
       const validationError = e as AsyncValidationError
       throw new functions.https.HttpsError(
@@ -599,7 +668,10 @@ export const updateUser = functions.https.onCall(
       }
     )
 
+    console.log(context.auth.token)
+
     if (context.auth.token.accessLevel === 0) {
+      console.log('updating custom claims!')
       await updateCustomUserClaims(uid, {
         accessLevel: 1,
       })
@@ -619,6 +691,10 @@ export const addContact = functions.https.onCall(
   async (data: AddContactDto, context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+    }
+
+    if (context.auth?.token?.accessLevel !== 1) {
+      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
     }
 
     const { uid } = context.auth
@@ -660,6 +736,10 @@ export const deleteContact = functions.https.onCall(
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
 
+    if (context.auth?.token?.accessLevel !== 1) {
+      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
+    }
+
     const { uid } = context.auth
 
     if (uid === data.contactId) {
@@ -685,6 +765,10 @@ export const blockContact = functions.https.onCall(
   async (data: DeleteContactDto, context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+    }
+
+    if (context.auth?.token?.accessLevel !== 1) {
+      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
     }
 
     const { uid } = context.auth
@@ -747,11 +831,18 @@ export const updateParty = functions.https.onCall(
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
 
+    if (context.auth?.token?.accessLevel !== 1) {
+      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
+    }
+
     const { uid } = context.auth
 
     // Make sure authenticated user is party admin
     if (uid !== data.admin) {
-      throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Only the party admin can update party settings'
+      )
     }
 
     if (!data.members.includes(uid)) {
@@ -760,8 +851,6 @@ export const updateParty = functions.https.onCall(
         'You must be a member of your own party!'
       )
     }
-
-    console.log(data)
 
     try {
       await validators.updateParty.validate(data, { firstFields: true })
@@ -936,6 +1025,10 @@ export const getYelpBusinesses = functions.https.onCall(
   async (data: GetYelpBusinessesDto, context) => {
     if (!context.auth || !context.auth.uid) {
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+    }
+
+    if (context.auth?.token?.accessLevel !== 1) {
+      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
     }
 
     if (!data || !data.description || !data.latitude || !data.longitude) {

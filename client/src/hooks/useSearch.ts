@@ -115,7 +115,7 @@ const useSearch = (viewProfile: (userProfile?: User | undefined) => void) => {
                   searchClient,
                   queries: [
                     {
-                      indexName: 'dev_users',
+                      indexName: 'users',
                       query,
                       params: {
                         hitsPerPage: 6,

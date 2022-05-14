@@ -1,4 +1,5 @@
 import React from 'react'
+import { useOutletContext, Navigate } from 'react-router-dom'
 import { useIsMutating } from 'react-query'
 import { DateTime } from 'luxon'
 import { useTable, useSortBy, Column, CellProps } from 'react-table'
@@ -33,8 +34,6 @@ import MenuItem from '@mui/material/MenuItem'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import AddIcon from '@mui/icons-material/Add'
 
-import { usePopper, useLeaveParty, useDeleteBusiness } from '../../hooks'
-import { usePartySettings } from '../../context/PartySettingsContext'
 import {
   useUser,
   useParties,
@@ -42,6 +41,8 @@ import {
   PopulatedParty,
   Business,
 } from '../../context/FirestoreContext'
+import { usePartySettings } from '../../context/PartySettingsContext'
+import { usePopper, useLeaveParty, useDeleteBusiness } from '../../hooks'
 import { BusinessListItem } from '../../components'
 import { Link, Avatar, AvatarGroup } from '../../common/components'
 

@@ -3,7 +3,6 @@ import { To, useNavigate } from 'react-router-dom'
 import { useIsMutating } from 'react-query'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import GlobalStyles from '@mui/material/GlobalStyles'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
@@ -467,7 +466,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
       </Hidden>
       <Hidden smDown>
         <Typography variant='h6' mr='auto'>
-          Welcome back, {user.username}!
+          {user.username && `Welcome back, ${user.username}!`}
         </Typography>
       </Hidden>
       <IconButton sx={{ ml: 'auto' }}>
@@ -481,7 +480,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
         onClick={popper.handlePopperToggle}
         sx={{ ml: 1, p: 0 }}
       >
-        <Avatar alt={user.name} src={user.photoURL} size={40} />
+        <Avatar alt={user.name} src={user.photoURL} size={32} />
       </IconButton>
       <Popper {...popper.getPopperProps()}>
         <ClickAwayListener onClickAway={popper.handlePopperClose}>
@@ -560,12 +559,7 @@ const DashboardLayout: React.FC = props => {
   const [open, setOpen] = React.useState(false)
 
   return (
-    <Box position='relative'>
-      <GlobalStyles
-        styles={{
-          body: { background: '#f8fafb' },
-        }}
-      />
+    <>
       <ResponsiveDrawer open={open} setOpen={setOpen} />
       <DashboardWindow>
         <DashboardHeader setOpen={setOpen} />
@@ -586,7 +580,7 @@ const DashboardLayout: React.FC = props => {
           {props.children}
         </Container>
       </DashboardWindow>
-    </Box>
+    </>
   )
 }
 

@@ -15,7 +15,6 @@ import {
   updatePhoneNumber,
 } from 'firebase/auth'
 
-import api from '../app/api'
 import { auth } from '../app/firebase'
 
 const persistenceTypes = {
@@ -29,9 +28,18 @@ export class AuthService {
     return setPersistence(auth, persistenceTypes[type])
   }
 
-  static async signUp(data: any) {
-    const res = await api.cloud.post<{ result: string }>('/signUp', { data })
-    return res.data.result
+  // static async signUp(data: any) {
+  //   const res = await api.cloud.post<{ result: string }>('/signUp', { data })
+  //   return res.data.result
+  // }
+
+  // static async signUp(data: any) {
+  //   const res = await httpsCallable<any, string>(functions, 'signUp')(data)
+  //   return res.data
+  // }
+
+  static async signUp(email: string, password: string) {
+    await createUserWithEmailAndPassword(auth, email, password)
   }
 
   static signIn(email: string, password: string) {

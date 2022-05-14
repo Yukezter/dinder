@@ -1,5 +1,5 @@
 import React from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useMutation } from 'react-query'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import { styled } from '@mui/material/styles'
@@ -11,20 +11,13 @@ import Typography from '@mui/material/Typography'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 
-import { AuthService } from '../../services/auth'
-import { useAuth } from '../../context/AuthContext'
-import landingImage from '../../assets/images/food.jpg'
-import backgroundImage from '../../assets/images/background.svg'
-import {
-  Button,
-  FormAlert,
-  TextField,
-  FormPaper,
-} from '../../common/components'
+import { AuthService } from '../services/auth'
+import { useAuth } from '../context/AuthContext'
+import landingImage from '../assets/images/food.jpg'
+import backgroundImage from '../assets/images/background.svg'
+import { Button, FormAlert, TextField, FormPaper } from '../common/components'
 
 type SignUpFormInputs = {
-  name: string
-  username: string
   email: string
   password: string
 }
@@ -33,16 +26,12 @@ const SignUp: React.FC = () => {
   const form = useForm<SignUpFormInputs>()
   const [checked, setChecked] = React.useState(false)
 
-  const mutation = useMutation<string, Error, SignUpFormInputs>(async data => {
-    return AuthService.signUp(data)
+  const mutation = useMutation<void, Error, SignUpFormInputs>(async data => {
+    return AuthService.signUp(data.email, data.password)
   })
 
   const onSubmit: SubmitHandler<SignUpFormInputs> = data => {
-    mutation.mutate(data, {
-      onSuccess: async token => {
-        await AuthService.signInWithCustomToken(token)
-      },
-    })
+    mutation.mutate(data)
   }
 
   const isDisabled = mutation.isLoading || mutation.isSuccess
@@ -56,28 +45,6 @@ const SignUp: React.FC = () => {
         <FormAlert message={mutation.error.message} onClose={mutation.reset} />
       )}
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <div style={{ display: 'flex' }}>
-          <TextField
-            {...form.register('name', {
-              required: 'A name is required',
-            })}
-            disabled={isDisabled}
-            id='name'
-            label='Name'
-            fullWidth
-            sx={{ mb: 2, mr: 1 }}
-          />
-          <TextField
-            {...form.register('username', {
-              required: 'A username is required',
-            })}
-            disabled={isDisabled}
-            id='username'
-            label='Username'
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-        </div>
         <TextField
           {...form.register('email', {
             required: 'An email is required',
@@ -278,13 +245,7 @@ const Landing = () => {
   const auth = useAuth()
 
   if (auth.user) {
-    if (auth.claims?.accessLevel === 0) {
-      return <Navigate to='/settings/general' replace />
-    }
-
-    if (auth.claims?.accessLevel === 1) {
-      return <Navigate to='/dashboard' replace />
-    }
+    return <Navigate to='/dashboard' replace />
   }
 
   return (

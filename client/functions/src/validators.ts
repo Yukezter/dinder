@@ -1,6 +1,7 @@
 /* eslint-disable prefer-promise-reject-errors */
 // import * as functions from 'firebase-functions'
-import { firestore } from './app'
+import * as admin from 'firebase-admin'
+// import { firestore } from './app'
 // import * as Joi from 'joi'
 import Schema, {
   // ValidateMessages,
@@ -36,7 +37,10 @@ const username: Rule = [
       const username = value
       const options = o as ValidateOptions
       const uid = options?.uid
-      const usernameRef = firestore.collection('usernames').doc(username)
+      const usernameRef = admin
+        .firestore()
+        .collection('usernames')
+        .doc(username)
       const usernameDoc = await usernameRef.get()
 
       if (usernameDoc.exists && usernameDoc.data()?.uid === uid) {
@@ -153,7 +157,7 @@ export default {
     about: {
       type: 'string',
       max: 1000,
-      message: 'About me must be 1000 charcters or less',
+      message: 'Your "About me" cannot be over 1000 charcters',
     },
   }),
   updateParty: new Schema({
