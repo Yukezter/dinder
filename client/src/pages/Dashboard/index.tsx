@@ -12,6 +12,7 @@ import MenuList from '@mui/material/MenuList'
 import MenuItem from '@mui/material/MenuItem'
 import Drawer from '@mui/material/Drawer'
 import List from '@mui/material/List'
+import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import Container from '@mui/material/Container'
 import Hidden from '@mui/material/Hidden'
@@ -404,6 +405,7 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
       sx={{
         '& .MuiDrawer-paper': {
           width: { xs: '100%', md: drawerWidth },
+          borderRight: 0,
         },
       }}
     >
@@ -424,7 +426,23 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
           <BrandName to='/dashboard' fontSize={20} py={2} />
         </Box>
       </Container>
-      <Container maxWidth={false}>
+      <Container
+        maxWidth={false}
+        sx={{
+          height: '100%',
+          position: 'relative',
+          '::after': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            height: '100%',
+            width: '1px',
+            // background: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRight: '1px solid rgba(0, 0, 0, 0.12)',
+          },
+        }}
+      >
         <ContactsMenu />
       </Container>
     </Drawer>
@@ -434,8 +452,6 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
 type DashboardHeaderProps = {
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }
-
-const dashboardHeaderHeight = 120
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
   const navigate = useNavigate()
@@ -458,81 +474,90 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
   }
 
   return (
+    // <Container maxWidth='lg' disableGutters>
     <Header
-      height={dashboardHeaderHeight}
-      position='absolute'
-      sx={{ px: { sm: 2 } }}
+      position='fixed'
+      elevation={0}
+      sx={{
+        width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
+        color: 'white',
+        background: 'linear-gradient(#de59a9, #fa6715)',
+        px: { sm: 2 },
+      }}
     >
-      <Hidden mdUp>
-        <IconButton sx={{ mr: 'auto' }} onClick={toggleContacts}>
-          <GroupIcon />
+      <Toolbar component={Container} maxWidth='lg'>
+        <Hidden mdUp>
+          <IconButton sx={{ mr: 'auto' }} onClick={toggleContacts}>
+            <GroupIcon />
+          </IconButton>
+        </Hidden>
+        <Hidden mdUp>
+          <BrandName to='/dashboard' fontSize={20} py={2} />
+        </Hidden>
+        <IconButton sx={{ ml: 'auto' }}>
+          <NotificationsIcon />
         </IconButton>
-      </Hidden>
-      <Hidden smDown>
-        <Typography variant='h6' mr='auto'>
-          {user.username && `Welcome back, @${user.username}!`}
-        </Typography>
-      </Hidden>
-      <IconButton sx={{ ml: 'auto' }}>
-        <NotificationsIcon />
-      </IconButton>
-      <IconButton
-        id='account-button'
-        aria-controls={popper.open ? 'account-menu' : undefined}
-        aria-haspopup='true'
-        aria-expanded={popper.open ? 'true' : undefined}
-        onClick={popper.handlePopperToggle}
-        sx={{ ml: 0.5 }}
-      >
-        <Avatar alt={user.name} src={user.photoURL} size={24} />
-      </IconButton>
-      <Popper {...popper.getPopperProps()}>
-        <ClickAwayListener onClickAway={popper.handlePopperClose}>
-          <MenuList component={Paper}>
-            <MenuItem
-              onClick={navigateTo(`/profiles/${user.uid}`)}
-              dense
-              sx={{
-                justifyContent: 'center',
-                mb: 1,
-              }}
-            >
-              Profile
-            </MenuItem>
-            <MenuItem
-              onClick={navigateTo('/settings/general')}
-              dense
-              sx={{
-                justifyContent: 'center',
-                mb: 1,
-              }}
-            >
-              Settings
-            </MenuItem>
-            <MenuItem
-              onKeyUp={e => e.key === '13' && signOutButtonRef.current!.click()}
-              disableRipple
-              disableTouchRipple
-              sx={{
-                py: 1,
-                borderTop: '1px solid rgba(0, 0, 0, 0.12)',
-                cursor: 'default',
-                ':hover': { backgroundColor: 'transparent' },
-              }}
-            >
-              <Button
-                ref={signOutButtonRef}
-                size='small'
-                color='primary'
-                onClick={signOut}
+        <IconButton
+          id='account-button'
+          aria-controls={popper.open ? 'account-menu' : undefined}
+          aria-haspopup='true'
+          aria-expanded={popper.open ? 'true' : undefined}
+          onClick={popper.handlePopperToggle}
+          sx={{ ml: 0.5 }}
+        >
+          <Avatar alt={user.name} src={user.photoURL} size={24} />
+        </IconButton>
+        <Popper {...popper.getPopperProps()}>
+          <ClickAwayListener onClickAway={popper.handlePopperClose}>
+            <MenuList component={Paper}>
+              <MenuItem
+                onClick={navigateTo(`/profiles/${user.uid}`)}
+                dense
+                sx={{
+                  justifyContent: 'center',
+                  mb: 1,
+                }}
               >
-                Sign Out
-              </Button>
-            </MenuItem>
-          </MenuList>
-        </ClickAwayListener>
-      </Popper>
+                Profile
+              </MenuItem>
+              <MenuItem
+                onClick={navigateTo('/settings/general')}
+                dense
+                sx={{
+                  justifyContent: 'center',
+                  mb: 1,
+                }}
+              >
+                Settings
+              </MenuItem>
+              <MenuItem
+                onKeyUp={e =>
+                  e.key === '13' && signOutButtonRef.current!.click()
+                }
+                disableRipple
+                disableTouchRipple
+                sx={{
+                  py: 1,
+                  borderTop: '1px solid rgba(0, 0, 0, 0.12)',
+                  cursor: 'default',
+                  ':hover': { backgroundColor: 'transparent' },
+                }}
+              >
+                <Button
+                  ref={signOutButtonRef}
+                  size='small'
+                  color='primary'
+                  onClick={signOut}
+                >
+                  Sign Out
+                </Button>
+              </MenuItem>
+            </MenuList>
+          </ClickAwayListener>
+        </Popper>
+      </Toolbar>
     </Header>
+    // </Container>
   )
 }
 
@@ -572,16 +597,15 @@ const DashboardLayout: React.FC = props => {
           maxWidth='lg'
           sx={{
             position: 'relative',
-            height: `calc(100% - ${dashboardHeaderHeight}px)`,
-            // height: '100%',
+            height: '100%',
             px: { xs: 0, sm: 2 },
-            pt: `${dashboardHeaderHeight}px`,
             mb: { xs: 2, lg: 5 },
             display: 'flex',
             flexDirection: 'column',
             flex: 1,
           }}
         >
+          <Toolbar sx={{ mb: 4 }} />
           {props.children}
         </Container>
       </DashboardWindow>

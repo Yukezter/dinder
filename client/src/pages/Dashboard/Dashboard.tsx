@@ -157,12 +157,12 @@ const CreatePartyCard: React.FC = () => {
   const { openSettings } = usePartySettings()
 
   return (
-    <Card sx={{ height: '100%', borderRadius: 8 }}>
+    <Card sx={{ height: { xs: 165, sm: 180 }, borderRadius: 8 }}>
       <CardActionArea
         sx={{
           fontSize: 'unset',
           lineHeight: 'unset',
-          height: '100%',
+          height: { xs: 165, sm: 180 },
           borderRadius: 8,
           p: 2,
           display: 'flex',
@@ -479,7 +479,7 @@ const BusinessLists = () => {
   const BusinessList = ({ list }: { list: Business[] }) => {
     if (!businesses.isPlaceholderData && list.length === 0) {
       return (
-        <Box py={5}>
+        <Box py={10}>
           <Typography variant='caption' display='block' align='center'>
             No items to display.
           </Typography>
@@ -539,6 +539,7 @@ const BusinessLists = () => {
 }
 
 const Dashboard = () => {
+  const user = useUser()
   const { data, isPlaceholderData } = useParties()
 
   const parties = React.useMemo(() => {
@@ -637,6 +638,9 @@ const Dashboard = () => {
 
   return (
     <>
+      <Typography variant='h6' paragraph>
+        {user.username && `Welcome back, @${user.username}!`}
+      </Typography>
       <Paper sx={{ p: 3, mb: 4 }}>
         <Typography variant='h6' gutterBottom>
           Recent Parties

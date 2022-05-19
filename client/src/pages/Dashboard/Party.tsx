@@ -1086,7 +1086,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         <BusinessCard
           key={business.id ? `${business.id}-${index}` : index}
           business={business}
-          style={{ x, y, zIndex: index }}
+          style={{ x, y, zIndex: index, touchAction: 'none' }}
           onDirectionLock={axis => onDirectionLock(axis)}
           onDragEnd={(e, info) => onDragEnd(info)}
           animate={dragStart.animation}
