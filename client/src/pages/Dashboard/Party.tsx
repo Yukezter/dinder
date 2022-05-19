@@ -29,6 +29,7 @@ import Dialog, { DialogProps } from '@mui/material/Dialog'
 import Drawer from '@mui/material/Drawer'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
+import Hidden from '@mui/material/Hidden'
 import Card from '@mui/material/Card'
 import CardMedia from '@mui/material/CardMedia'
 import CardContent from '@mui/material/CardContent'
@@ -40,6 +41,7 @@ import MenuList from '@mui/material/MenuList'
 import MenuItem from '@mui/material/MenuItem'
 import Chip from '@mui/material/Chip'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 
 import { UsersService } from '../../services/users'
 import { PartiesService } from '../../services/parties'
@@ -451,7 +453,12 @@ const MatchListItem: React.FC<MatchListItemProps> = props => {
 
 type MatchesByDate = { date: string; matches: Match[] }[]
 
-const Matches = ({ partyId }: { partyId: string }) => {
+type MatchesProps = {
+  partyId: string
+  closeMatches: () => void
+}
+
+const Matches: React.FC<MatchesProps> = ({ partyId, closeMatches }) => {
   const user = useUser()
   const [liveMatchQueue, setLiveMatchQueue] = React.useState<Match[]>([])
   const [liveMatch, setLiveMatch] = React.useState<Match | null>(null)
@@ -565,9 +572,19 @@ const Matches = ({ partyId }: { partyId: string }) => {
           },
         }}
       />
-      <Typography variant='h6' mb={2}>
-        Matches
-      </Typography>
+      <Box
+        display='flex'
+        justifyContent='space-between'
+        alignItems='center'
+        mb={2}
+      >
+        <Typography variant='h6'>Matches</Typography>
+        <Hidden smUp>
+          <IconButton onClick={closeMatches}>
+            <ArrowForwardIcon />
+          </IconButton>
+        </Hidden>
+      </Box>
       <Box
         sx={{
           overflowY: isLoading ? 'hidden' : 'auto',
@@ -1054,10 +1071,10 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   const onDragEnd = React.useCallback(
     (info: PanInfo) => {
       if (dragStart.axis === 'x') {
-        if (info.offset.x >= 300) animateCardSwipe('like')
-        else if (info.offset.x <= -300) animateCardSwipe('dislike')
+        if (info.offset.x >= 100) animateCardSwipe('like')
+        else if (info.offset.x <= -100) animateCardSwipe('dislike')
       } else {
-        if (info.offset.y <= -300) animateCardSwipe('super-like')
+        if (info.offset.y <= -100) animateCardSwipe('super-like')
       }
     },
     [dragStart, animateCardSwipe]
@@ -1471,9 +1488,11 @@ const PartyView = () => {
             keepMounted: true,
           }}
           sx={{
-            maxWidth: 400,
+            maxWidth: { sm: 400 },
+            width: { xs: '100%', sm: 'auto' },
             '& .MuiDrawer-paper': {
-              maxWidth: 400,
+              maxWidth: { sm: 400 },
+              width: { xs: '100%', sm: 'auto' },
             },
             height: {
               lg: '100%',
@@ -1497,7 +1516,7 @@ const PartyView = () => {
             },
           }}
         >
-          <Matches partyId={partyId} />
+          <Matches partyId={partyId} closeMatches={closeMatches} />
         </Drawer>
       </Grid>
     </Grid>

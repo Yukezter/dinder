@@ -462,7 +462,6 @@ const ProfilePhotoSettings: React.FC = () => {
                 cursor: 'pointer',
               }}
               onClick={changePhoto}
-              // imgProps={{ onClick: changePhoto }}
             >
               <AddIcon />
             </Avatar>
@@ -473,7 +472,6 @@ const ProfilePhotoSettings: React.FC = () => {
             src={user.photoURL}
             sx={{ width: 80, height: 80, cursor: 'pointer' }}
             onClick={changePhoto}
-            // imgProps={{ onClick: changePhoto }}
           />
           <input
             ref={fileInputRef}
@@ -487,7 +485,7 @@ const ProfilePhotoSettings: React.FC = () => {
           <Typography variant='h6' fontWeight={700}>
             General
           </Typography>
-          <Typography variant='body2'>{user.username}</Typography>
+          <Typography variant='body2'>@{user.username}</Typography>
         </Stack>
       </Stack>
     </Box>
@@ -680,6 +678,7 @@ const Settings: React.FC = () => {
     } else if (snackbarKey.current) {
       closeSnackbar(snackbarKey.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.claims?.accessLevel])
 
   const cancelSettings = () => {

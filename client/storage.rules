@@ -14,10 +14,6 @@ service firebase.storage {
   }
 
   match /b/{bucket}/o {
-    match /default/{fileName} {
-      allow read: if userIsAuthenticated()
-    }
-
     match /users/{userId}/profilePhoto {
       allow read: if userIsAuthenticated();
       allow create: if userOwnsResource(userId) && isValidImageFile();

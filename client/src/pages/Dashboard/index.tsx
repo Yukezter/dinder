@@ -458,7 +458,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
   }
 
   return (
-    <Header height={dashboardHeaderHeight} position='absolute' sx={{ px: 3 }}>
+    <Header
+      height={dashboardHeaderHeight}
+      position='absolute'
+      sx={{ px: { sm: 2 } }}
+    >
       <Hidden mdUp>
         <IconButton sx={{ mr: 'auto' }} onClick={toggleContacts}>
           <GroupIcon />
@@ -466,7 +470,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
       </Hidden>
       <Hidden smDown>
         <Typography variant='h6' mr='auto'>
-          {user.username && `Welcome back, ${user.username}!`}
+          {user.username && `Welcome back, @${user.username}!`}
         </Typography>
       </Hidden>
       <IconButton sx={{ ml: 'auto' }}>
@@ -478,9 +482,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
         aria-haspopup='true'
         aria-expanded={popper.open ? 'true' : undefined}
         onClick={popper.handlePopperToggle}
-        sx={{ ml: 1, p: 0 }}
+        sx={{ ml: 0.5 }}
       >
-        <Avatar alt={user.name} src={user.photoURL} size={32} />
+        <Avatar alt={user.name} src={user.photoURL} size={24} />
       </IconButton>
       <Popper {...popper.getPopperProps()}>
         <ClickAwayListener onClickAway={popper.handlePopperClose}>
@@ -570,6 +574,7 @@ const DashboardLayout: React.FC = props => {
             position: 'relative',
             height: `calc(100% - ${dashboardHeaderHeight}px)`,
             // height: '100%',
+            px: { xs: 0, sm: 2 },
             pt: `${dashboardHeaderHeight}px`,
             mb: { xs: 2, lg: 5 },
             display: 'flex',

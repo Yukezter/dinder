@@ -43,7 +43,7 @@ const client = algoliasearch(
   functions.config().algolia.key
 )
 
-const search = client.initIndex('dev_users')
+const search = client.initIndex('users')
 
 const yelp = {
   id: functions.config().yelp.client_id,
@@ -167,34 +167,6 @@ const offsets = (partyId: string) =>
 /* ---------- HELPER FUNCTIONS ---------- */
 
 const defaultPhotoURL = 'https://cdn-icons-png.flaticon.com/512/61/61205.png'
-
-// const createUser = async (user: UserRecord, batch = firestore.batch()) => {
-//   const { uid } = user
-//   const photoURL = user.photoURL || defaultPhotoURL
-//   const name = user.displayName || ''
-//   const username = ''
-//   const about = ''
-
-//   batch.create(users.doc(uid), {
-//     uid,
-//     photoURL,
-//     name,
-//     username,
-//     about,
-//   })
-
-//   await search
-//     .partialUpdateObject({
-//       objectID: uid,
-//       photoURL,
-//       name,
-//       username,
-//       about,
-//     })
-//     .wait()
-
-//   await batch.commit()
-// }
 
 // const throwIfUnauthenticated = (context: functions.https.CallableContext) => {
 //   if (!context.auth || !context.auth.uid) {
@@ -376,13 +348,16 @@ export const onUpdateUser = functions.firestore
 
     if (!change.before.isEqual(change.after)) {
       // Update Algolia user data
-      await search.partialUpdateObject({
-        objectID: uid,
-        photoURL: newData.photoURL || null,
-        name: newData.name || null,
-        username: newData.username || null,
-        about: newData.about || null,
-      })
+      await search.partialUpdateObject(
+        {
+          objectID: uid,
+          photoURL: newData.photoURL || null,
+          name: newData.name || null,
+          username: newData.username || null,
+          about: newData.about || null,
+        },
+        { createIfNotExists: true }
+      )
     }
   })
 
@@ -414,7 +389,7 @@ export const onFileUpload = functions.storage
     }
 
     const uid = object.name!.split('/')[1]
-    users.doc(uid).update({
+    await users.doc(uid).update({
       photoURL: object.mediaLink,
     })
   })
@@ -437,7 +412,7 @@ export const onFileDelete = functions.storage
     }
 
     const uid = object.name!.split('/')[1]
-    users.doc(uid).update({
+    await users.doc(uid).update({
       photoURL: defaultPhotoURL,
     })
   })
@@ -552,78 +527,11 @@ export const onChangeMembers = functions.firestore
 
 /* ---------- CLOUD FUNCTIONS ---------- */
 
-/* SIGN UP */
-
-// type SignUpDto = {
-//   name: string
-//   username: string
-//   email: string
-//   password: string
-// }
-
-// export const signUp = functions.https.onCall(async (data: SignUpDto) => {
-//   try {
-//     await validators.signUp.validate(data, { firstFields: true })
-//   } catch (e) {
-//     const validationError = e as AsyncValidationError
-//     throw new functions.https.HttpsError(
-//       'invalid-argument',
-//       validationError.message,
-//       validationError.errors
-//     )
-//   }
-
-//   try {
-//     const user = await auth.createUser({
-//       displayName: data.name,
-//       email: data.email,
-//       password: data.password,
-//     })
-
-//     const batch = firestore.batch()
-
-//     const usernameRef = usernames.doc(data.username)
-//     batch.create(usernameRef, { uid: user.uid })
-//     batch.create(users.doc(user.uid), {
-//       uid: user.uid,
-//       photoURL: defaultPhotoURL,
-//       name: data.name,
-//       username: data.username,
-//       about: '',
-//     })
-
-//     await search
-//       .partialUpdateObject({
-//         objectID: user.uid,
-//         photoURL: defaultPhotoURL,
-//         name: data.name,
-//         username: data.username,
-//         about: '',
-//       })
-//       .wait()
-
-//     await batch.commit()
-
-//     await updateCustomUserClaims(user.uid, {
-//       accessLevel: 1,
-//     })
-
-//     return auth.createCustomToken(user.uid)
-//   } catch (error) {
-//     console.log(error)
-//     throw new functions.https.HttpsError(
-//       'internal',
-//       'Something went wrong...',
-//       {
-//         details: error,
-//       }
-//     )
-//   }
-// })
-
 /* UPDATE USER */
 
-type UpdateUserDto = Pick<User, 'name' | 'username'> & {
+type UpdateUserDto = {
+  name: NonNullable<User['name']>
+  username: NonNullable<User['username']>
   about?: string
 }
 
@@ -633,51 +541,53 @@ export const updateUser = functions.https.onCall(
       throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
     }
 
-    const { uid } = context.auth
-
-    try {
-      await validators.updateUser.validate(data, {
-        firstFields: true,
-        uid,
-      } as ValidateOption)
-    } catch (e) {
-      const validationError = e as AsyncValidationError
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        validationError.message,
-        validationError.errors
-      )
-    }
+    const { auth } = context
 
     await firestore.runTransaction(
       async tx => {
-        // Delete any existing usernames that belong to this user
-        const usernamesQuery = usernames.where('uid', '==', uid)
-        const usernamesSnapshot = await tx.get(usernamesQuery)
-        usernamesSnapshot.docs.forEach(doc => tx.delete(doc.ref))
+        const usernameRef = usernames.doc(data.username)
+        const usernameDoc = await tx.get(usernameRef)
+        const usernameData = usernameDoc.data()
 
-        // Assign the new username to this user
-        const usernameRef = usernames.doc(data.username!)
-        tx.create(usernameRef, { uid })
+        try {
+          await validators.updateUser.validate(data, {
+            firstFields: true,
+            uid: auth.uid,
+            usernameData,
+          } as ValidateOption)
+        } catch (e) {
+          const validationError = e as AsyncValidationError
+          throw new functions.https.HttpsError(
+            'invalid-argument',
+            validationError.message,
+            validationError.errors
+          )
+        }
+
+        // Skip username update if username hasn't changed
+        if (!usernameData) {
+          // Delete any existing usernames that belong to this user
+          const usernamesQuery = usernames.where('uid', '==', auth.uid)
+          const usernamesSnapshot = await tx.get(usernamesQuery)
+          usernamesSnapshot.docs.forEach(doc => tx.delete(doc.ref))
+
+          // Assign the new username to this user
+          tx.create(usernameRef, { uid: auth.uid })
+        }
 
         // Update user
-        tx.update(users.doc(uid), data)
+        tx.update(users.doc(auth.uid), data)
       },
       {
         maxAttempts: 3,
       }
     )
 
-    console.log(context.auth.token)
-
     if (context.auth.token.accessLevel === 0) {
-      console.log('updating custom claims!')
-      await updateCustomUserClaims(uid, {
+      await updateCustomUserClaims(auth.uid, {
         accessLevel: 1,
       })
     }
-
-    return true
   }
 )
 
@@ -719,7 +629,7 @@ export const addContact = functions.https.onCall(
       })
     } catch (error) {
       console.log(error)
-      return error
+      throw error
     }
   }
 )
@@ -1072,50 +982,3 @@ export const getYelpBusinesses = functions.https.onCall(
     }
   }
 )
-
-// export const onUserStatusChanged = functions.database
-//   .instance('dinder-33ca6-default-rtdb')
-//   .ref('/status/{uid}')
-//   .onUpdate(async (change, context) => {
-//     const eventStatus = change.after.val()
-
-//     const userStatusFirestoreRef = firestore.doc(`status/${context.params.uid}`)
-
-//     const statusSnapshot = await change.after.ref.once('value')
-//     const status = statusSnapshot.val()
-//     functions.logger.log(status, eventStatus)
-
-//     if (status.last_changed > eventStatus.last_changed) {
-//       return null
-//     }
-
-//     eventStatus.last_changed = new Date(eventStatus.last_changed)
-
-//     return userStatusFirestoreRef.set(eventStatus)
-//   })
-
-// export const onWriteUserStatus = functions.database
-//   .instance('dinder-33ca6-default-rtdb')
-//   .ref('/users/{uid}/connections')
-//   .onWrite(async (change, context) => {
-//     try {
-//       const userStatusFirestoreRef = firestore.doc(
-//         `status/${context.params.uid}`
-//       )
-
-//       if (!change.after.exists()) {
-//         return userStatusFirestoreRef.set({
-//           state: 'offline',
-//         })
-//       }
-
-//       if (!change.before.exists()) {
-//         return userStatusFirestoreRef.set({
-//           state: 'online',
-//         })
-//       }
-//     } catch (error) {
-//       console.log(error)
-//       return error
-//     }
-//   })

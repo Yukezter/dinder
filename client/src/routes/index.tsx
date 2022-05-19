@@ -9,6 +9,7 @@ import GlobalStyles from '@mui/material/GlobalStyles'
 import Box from '@mui/material/Box'
 import Zoom from '@mui/material/Zoom'
 import { TransitionProps } from '@mui/material/transitions'
+import CircularProgress from '@mui/material/CircularProgress'
 import { SnackbarProvider } from 'notistack'
 
 import { FinishAccountSetup } from '../components'
@@ -27,8 +28,12 @@ const ProtectedRoute = () => {
   const location = useLocation()
   const auth = useAuth()
 
-  if (!auth.user || auth.claims?.accessLevel === undefined) {
+  if (!auth.user) {
     return <Navigate to='/' state={{ from: location }} />
+  }
+
+  if (auth.claims?.accessLevel === undefined) {
+    return <CircularProgress sx={{ m: 'auto' }} />
   }
 
   if (auth.claims?.accessLevel === 0) {
@@ -69,7 +74,7 @@ const Routes = () => {
         <Box height='100vh' display='flex'>
           <GlobalStyles
             styles={{
-              body: { background: '#f8fafb' },
+              body: { background: '#FFF8EF' },
             }}
           />
           <ProtectedRoute />

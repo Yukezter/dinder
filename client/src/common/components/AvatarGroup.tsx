@@ -39,12 +39,16 @@ const CustomAvatarGroup: React.FC<CustomAvatarGroupProps> = ({
         max={3}
         sx={{
           mr: 1,
-          justifyContent: 'flex-end',
+          justifyContent: { xs: 'center', sm: 'flex-end' },
           '& > .MuiAvatarGroup-avatar': {
             ...(size === 'small' && {
               width: 24,
               height: 24,
               fontSize: theme => theme.typography.caption.fontSize,
+            }),
+            ...(size === 'medium' && {
+              width: { xs: 24, sm: 40 },
+              height: { xs: 24, sm: 40 },
             }),
           },
         }}

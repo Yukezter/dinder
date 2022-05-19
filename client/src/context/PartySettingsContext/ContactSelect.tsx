@@ -53,7 +53,7 @@ const ContactSelect: React.FC<ContactSelectProps> = React.memo(
       }
     }
 
-    console.log('ContactSelect')
+    const isDisabled = contacts.isLoading || contacts.data?.length === 0
 
     return (
       <div>
@@ -69,7 +69,7 @@ const ContactSelect: React.FC<ContactSelectProps> = React.memo(
             displayEmpty
             size='small'
             value={ids}
-            disabled={contacts.isLoading}
+            disabled={isDisabled}
             onChange={handleChange}
             label='Contacts'
             input={<OutlinedInput size='small' label='Contacts' notched />}

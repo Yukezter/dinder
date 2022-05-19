@@ -1,8 +1,7 @@
 /* eslint-disable prefer-promise-reject-errors */
 // import * as functions from 'firebase-functions'
-import * as admin from 'firebase-admin'
+// import * as admin from 'firebase-admin'
 // import { firestore } from './app'
-// import * as Joi from 'joi'
 import Schema, {
   // ValidateMessages,
   Rule,
@@ -13,16 +12,19 @@ import Schema, {
 //   required: '%s is required',
 // }
 
-type ValidateContext = {
-  uid: string
-}
-
-type ValidateOptions = ValidateOption & ValidateContext
-
 const name: Rule = {
   type: 'string',
   message: 'A name is required',
 }
+
+type ValidateContext = {
+  uid: string
+  usernameData?: {
+    uid: string
+  }
+}
+
+type ValidateOptions = ValidateOption & ValidateContext
 
 const username: Rule = [
   {
@@ -33,27 +35,37 @@ const username: Rule = [
     message: 'Username must be alphanumeric and 3-30 characters',
   },
   {
-    asyncValidator: async (rule, value, cb, source, o) => {
-      const username = value
-      const options = o as ValidateOptions
-      const uid = options?.uid
-      const usernameRef = admin
-        .firestore()
-        .collection('usernames')
-        .doc(username)
-      const usernameDoc = await usernameRef.get()
+    asyncValidator: async (rule, username, cb, source, options) => {
+      const o = options as ValidateOptions
 
-      if (usernameDoc.exists && usernameDoc.data()?.uid === uid) {
-        return Promise.reject('Username already owned')
-      }
-
-      // If not assigned and exists, someone else owns it
-      if (usernameDoc.exists && usernameDoc.data()?.uid !== uid) {
+      // If exists and not this user's, someone else owns it
+      if (o?.usernameData && o.usernameData.uid !== o.uid) {
         return Promise.reject('Username unavailable')
       }
 
-      return value
+      return username
     },
+    // asyncValidator: async (rule, value, cb, source, o) => {
+    //   const username = value
+    //   const options = o as ValidateOptions
+    //   const uid = options?.uid
+    //   const usernameRef = admin
+    //     .firestore()
+    //     .collection('usernames')
+    //     .doc(username)
+    //   const usernameDoc = await usernameRef.get()
+
+    //   if (usernameDoc.exists && usernameDoc.data()?.uid === uid) {
+    //     return Promise.reject('Username already owned')
+    //   }
+
+    //   // If not assigned and exists, someone else owns it
+    //   if (usernameDoc.exists && usernameDoc.data()?.uid !== uid) {
+    //     return Promise.reject('Username unavailable')
+    //   }
+
+    //   return value
+    // },
   },
 ]
 

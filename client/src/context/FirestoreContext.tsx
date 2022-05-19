@@ -7,11 +7,6 @@ import { UsersService } from '../services/users'
 import { PartiesService } from '../services/parties'
 import { IAuthContext } from '../context/AuthContext'
 
-const sleepThenThrow = (ms: number = 3000) =>
-  new Promise((resolve, reject) => {
-    setTimeout(() => reject(new Error()), ms)
-  })
-
 export type OnlineStatus = {
   [userId: string]: {
     state: 'online' | 'offline'

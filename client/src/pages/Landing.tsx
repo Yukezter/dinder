@@ -242,7 +242,7 @@ const LandingImg = styled('img')(({ theme }) => ({
 const Landing = () => {
   const auth = useAuth()
 
-  if (auth.user && auth.claims?.accessLevel !== undefined) {
+  if (auth.user) {
     return <Navigate to='/dashboard' replace />
   }
 
@@ -265,28 +265,3 @@ const Landing = () => {
 }
 
 export default Landing
-
-// if (postfix.length > 3) {
-//   let newPostfix = ''
-//   postfix
-//     .split('')
-//     .filter(char => char !== '-')
-//     .forEach((number, index) => {
-//       if (index !== 0 && index % 3 === 0) {
-//         newPostfix += '-'
-//       }
-
-//       newPostfix += number
-//     })
-//   postfix = newPostfix
-// }
-
-// const prefix = '+1'
-// let { value } = e.target
-//     if (value) {
-//       let postfix = value.startsWith(prefix.substring(0, value.length))
-//         ? value.substring(prefix.length)
-//         : value
-
-//       setPhoneNumber(postfix.length ? `${prefix}${postfix}` : '')
-//     }

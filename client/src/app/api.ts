@@ -16,6 +16,7 @@ const cloud = axios.create({
 cloud.interceptors.request.use(async config => {
   const token = await auth.currentUser?.getIdToken()
   config.headers = {
+    'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   }
 

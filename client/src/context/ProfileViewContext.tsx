@@ -45,6 +45,7 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
       display='flex'
       flexDirection='column'
       alignItems='center'
+      minWidth={300}
       maxWidth={400}
       p={5}
       position='relative'
@@ -75,18 +76,7 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
         About Me
       </Typography>
       <Typography variant='body2' paragraph>
-        {/* {userProfile?.about} */}
-        I love going out to eat. If you invite me to a party, Iwill start
-        swiping in less than a minute after I receive the invite. I’m not a
-        picky eater at all and I’m always down to try new types of cuisines.
-        <br />
-        <br />
-        Hint:
-        <br />
-        {'I will ALWAYS “super-like” any good sushi spots :)'}
-        <br />
-        <br />
-        Let’s disover new places to eat together!
+        {userProfile?.about}
       </Typography>
       <Box display='flex' mb={1}>
         {isContact(userProfile.uid) ? (

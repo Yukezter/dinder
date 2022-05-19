@@ -1,11 +1,11 @@
 import React from 'react'
-import { useOutletContext, Navigate } from 'react-router-dom'
 import { useIsMutating } from 'react-query'
 import { DateTime } from 'luxon'
 import { useTable, useSortBy, Column, CellProps } from 'react-table'
 import { visuallyHidden } from '@mui/utils'
+import { Theme } from '@mui/material/styles'
+import useMediaQuery from '@mui/material/useMediaQuery'
 import Box from '@mui/material/Box'
-import Stack from '@mui/material/Stack'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Grid from '@mui/material/Grid'
@@ -82,7 +82,13 @@ const TableToolbar: React.FC = () => {
   )
 }
 
-const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
+type PartyPopperProps = {
+  party?: PopulatedParty
+  disablePadding?: boolean
+}
+
+const PartyPopper: React.FC<PartyPopperProps> = props => {
+  const { party, disablePadding } = props
   const popper = usePopper()
   const user = useUser()
   const leaveParty = useLeaveParty(party)
@@ -108,6 +114,7 @@ const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
         }}
         aria-label='settings'
         disabled={!party || isMutating}
+        sx={{ ...(disablePadding && { p: 0 }) }}
       >
         <MoreVertIcon fontSize='small' />
       </IconButton>
@@ -146,107 +153,137 @@ const PartyPopper = ({ party }: { party?: PopulatedParty }) => {
   )
 }
 
-type PartyCardProps = {
-  party?: PopulatedParty
-  isCreatePartyCard?: boolean
-}
-
-const PartyCard: React.FC<PartyCardProps> = props => {
-  const { isCreatePartyCard, party } = props
+const CreatePartyCard: React.FC = () => {
   const { openSettings } = usePartySettings()
 
-  const wrap = (content: JSX.Element) => {
-    if (isCreatePartyCard) {
-      return (
-        <CardActionArea onClick={() => openSettings()} sx={{ p: 2 }}>
-          {content}
-        </CardActionArea>
-      )
-    }
-
-    if (!party) {
-      return content
-    }
-
-    return (
-      <Link to={`/party/${party?.id}`} display='block' p={2} state={{ party }}>
-        {content}
-      </Link>
-    )
-  }
-
-  const admin = React.useMemo(() => {
-    return party?.members.find(({ uid }) => uid === party.admin)
-  }, [party])
-
-  const content = (
-    <>
-      <CardHeader
-        action={party && <PartyPopper party={party} />}
-        disableTypography
-        sx={{ p: 0, mb: 1 }}
-        title={
-          <Box display='flex' alignItems='center' mb={1}>
-            <Avatar
-              // {...(party && { alt: admin?.name, src: admin?.photoURL })}
-              alt={isCreatePartyCard ? 'Create Party Icon' : admin?.name}
-              {...(!isCreatePartyCard && { src: admin?.photoURL })}
-              size='small'
-              sx={theme => ({
-                mr: 1,
-                ...(isCreatePartyCard && {
-                  background: theme.palette.primary.main,
-                }),
-              })}
-              {...(isCreatePartyCard && { children: <AddIcon /> })}
-            />
-            <Typography component='span' variant='body2'>
-              {isCreatePartyCard ? (
-                'New'
-              ) : !party ? (
-                <Skeleton width={80} />
-              ) : (
-                admin?.username
-              )}
+  return (
+    <Card sx={{ height: '100%', borderRadius: 8 }}>
+      <CardActionArea
+        sx={{
+          fontSize: 'unset',
+          lineHeight: 'unset',
+          height: '100%',
+          borderRadius: 8,
+          p: 2,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={() => openSettings()}
+      >
+        <CardHeader
+          disableTypography
+          sx={{ p: 0, mb: 1 }}
+          title={
+            <Typography variant='body1' fontWeight={600} noWrap>
+              Create
             </Typography>
-          </Box>
-        }
-        subheader={
-          <Typography component='span' variant='body1' fontWeight={600} noWrap>
-            {isCreatePartyCard ? (
-              'Create Party'
-            ) : !party ? (
-              <Skeleton width='75%' />
-            ) : (
-              party?.name
-            )}
-          </Typography>
-        }
-      />
-      <Stack spacing={0.5}>
-        <AvatarGroup
-          total={!party ? 3 : party.members.length}
-          users={party?.members}
+          }
         />
+        <Box my='auto'>
+          <Avatar
+            alt='Create Party Icon'
+            size='small'
+            sx={theme => ({
+              background: theme.palette.primary.main,
+            })}
+          >
+            <AddIcon />
+          </Avatar>
+        </Box>
         <Typography
           variant='caption'
           overflow='hidden'
           textOverflow='ellipsis'
           whiteSpace='nowrap'
         >
-          {isCreatePartyCard ? (
-            'Invite friends and start swiping!'
-          ) : !party ? (
-            <Skeleton width='90%' />
+          Create a party!
+        </Typography>
+      </CardActionArea>
+    </Card>
+  )
+}
+
+const colors = ['#fbddcc', '#fcf1d4', '#ffc8c8']
+
+type PartyCardProps = {
+  party?: PopulatedParty
+  index: number
+}
+
+const PartyCard: React.FC<PartyCardProps> = props => {
+  const { party, index } = props
+
+  const admin = React.useMemo(() => {
+    return party?.members.find(({ uid }) => uid === party.admin)
+  }, [party])
+
+  return (
+    <Card sx={{ height: '100%', borderRadius: 8 }}>
+      <Box
+        p={2}
+        mb={1}
+        borderRadius={8}
+        sx={{ backgroundColor: colors[index] }}
+      >
+        <CardHeader
+          action={party && <PartyPopper party={party} />}
+          disableTypography
+          sx={{ p: 0 }}
+          title={
+            <Box display='flex' alignItems='center' mb={1}>
+              <Avatar
+                alt={admin?.name}
+                src={admin?.photoURL}
+                size='small'
+                sx={{ mr: 1 }}
+              />
+              <Typography component='span' variant='body2'>
+                {!party ? <Skeleton width='50%' /> : admin?.username}
+              </Typography>
+            </Box>
+          }
+        />
+        <Typography
+          variant='body1'
+          fontWeight={600}
+          gutterBottom
+          noWrap
+          overflow='hidden'
+          textOverflow='ellipsis'
+        >
+          {!party ? (
+            <Skeleton width='75%' />
           ) : (
-            'Ana, Bryan, George, and 21 others'
+            <Link
+              to={`/party/${party.id}`}
+              state={{ party }}
+              underline='hover'
+              noWrap
+              overflow='hidden'
+              textOverflow='ellipsis'
+            >
+              {party.name}
+            </Link>
           )}
         </Typography>
-      </Stack>
-    </>
+        <AvatarGroup
+          total={!party ? 3 : party.members.length}
+          users={party?.members}
+        />
+      </Box>
+      <Typography
+        variant='caption'
+        component='div'
+        noWrap
+        overflow='hidden'
+        textOverflow='ellipsis'
+        p={2}
+        pt={0}
+      >
+        {!party ? <Skeleton width='90%' /> : party.location.description}
+      </Typography>
+    </Card>
   )
-
-  return <Card>{wrap(content)}</Card>
 }
 
 interface PartiesTableProps {
@@ -256,24 +293,42 @@ interface PartiesTableProps {
 
 const PartiesTable: React.FC<PartiesTableProps> = props => {
   const { data, columns } = props
-
-  const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
-    useTable(
-      {
-        columns,
-        data,
-        initialState: {
-          sortBy: [
-            {
-              id: 'lastActive',
-              desc: true,
-            },
-          ],
-        },
-        disableSortRemove: true,
+  const matchesSm = useMediaQuery<Theme>(theme => theme.breakpoints.up(480))
+  const matchesMd = useMediaQuery<Theme>(theme => theme.breakpoints.up(730))
+  const {
+    getTableProps,
+    getTableBodyProps,
+    headerGroups,
+    rows,
+    prepareRow,
+    setHiddenColumns,
+  } = useTable(
+    {
+      columns,
+      data,
+      initialState: {
+        hiddenColumns: matchesMd
+          ? []
+          : matchesSm
+          ? ['active']
+          : ['active', 'lastActive'],
+        sortBy: [
+          {
+            id: 'lastActive',
+            desc: true,
+          },
+        ],
       },
-      useSortBy
+      disableSortRemove: true,
+    },
+    useSortBy
+  )
+
+  React.useEffect(() => {
+    setHiddenColumns(
+      matchesMd ? [] : matchesSm ? ['active'] : ['active', 'lastActive']
     )
+  }, [matchesMd, matchesSm, setHiddenColumns])
 
   return (
     <Paper
@@ -294,6 +349,7 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
                 <TableRow {...headerGroup.getHeaderGroupProps()}>
                   {headerGroup.headers.map(column => (
                     <TableCell
+                      sx={{ whiteSpace: 'nowrap' }}
                       align={column.id === 'name' ? 'left' : 'right'}
                       sortDirection={
                         column.isSorted
@@ -587,15 +643,16 @@ const Dashboard = () => {
         </Typography>
         <Grid
           container
+          alignItems='stretch'
           columnSpacing={{ xs: 2, sm: 5 }}
           rowSpacing={{ xs: 2, sm: 5 }}
         >
           <Grid item xs={6} lg={3}>
-            <PartyCard isCreatePartyCard />
+            <CreatePartyCard />
           </Grid>
           {parties.cards.map((party, index) => (
             <Grid key={!party ? index : party.id} item xs={6} lg={3}>
-              <PartyCard party={party} />
+              <PartyCard party={party} index={index} />
             </Grid>
           ))}
         </Grid>
