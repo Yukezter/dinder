@@ -113,7 +113,7 @@ const PartyOptionsPopper = ({
         aria-expanded={popper.open ? 'true' : undefined}
         onClick={popper.handlePopperToggle}
         aria-label='settings'
-        sx={{ mb: 1.5 }}
+        sx={{ mb: 0.5 }}
       >
         <MoreVertIcon />
       </IconButton>
@@ -664,34 +664,41 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
       <Box p={2}>
         <OpenInNewLink href={business.url} ml='auto' fontSize={24} />
       </Box>
-      <Box py={2} px={4} sx={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}>
+      <Box p={1} sx={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}>
         <Grid container>
-          <Grid item xs>
-            <Box display='flex' alignItems='center'>
-              <Typography variant='h6' mr={2}>
-                {business.name}
-              </Typography>
-              <Box display='flex'>
-                <Chip
-                  label={business.price}
-                  size='small'
-                  color='primary'
-                  variant='filled'
-                  sx={{ width: 60, mr: 1 }}
-                />
+          <Grid item xs={12}>
+            <Box display='flex' alignItems='center' mb={1}>
+              <Box display='flex' alignItems='center' mr='auto'>
+                <Stars rating={business.rating} />
+                <Typography lineHeight={1} variant='caption' ml={0.5}>
+                  {business.review_count} Reviews
+                </Typography>
               </Box>
+              <Chip
+                label={business.price}
+                size='small'
+                color='primary'
+                variant='filled'
+                sx={{ px: 1, mr: 1 }}
+              />
             </Box>
-            <Typography variant='body2'>
-              {business.location.city}, {business.location.country}
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant='body2' fontWeight={600}>
+              {business.name}
             </Typography>
-            <Typography variant='body1' color='primary'>
-              {business.categories.map(({ title }) => title).join(', ')}
+            <Typography variant='body2'>
+              {business.location.city},{' '}
+              {business.location.state || business.location.country}
             </Typography>
           </Grid>
-          <Grid item xs='auto'>
-            <Stars rating={business.rating} />
-            <Typography variant='caption'>
-              {business.review_count} Reviews
+          <Grid xs={12}>
+            <Typography
+              variant='caption'
+              color='primary'
+              sx={{ textDecoration: 'underline' }}
+            >
+              {business.categories.map(({ title }) => title).join(', ')}
             </Typography>
           </Grid>
         </Grid>
@@ -824,7 +831,6 @@ const useInitialOffset = (
         queryKey[2] as string
       ),
     {
-      // enabled: false,
       ...options,
     }
   )
@@ -865,7 +871,7 @@ const useGetYelpBusinesses = (
       return data
     },
     {
-      // cacheTime: 24 * 60 * 60 * 1000,
+      cacheTime: 24 * 60 * 60 * 1000,
       select(data) {
         return {
           pageParams: data.pageParams,
@@ -1140,215 +1146,6 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   )
 }
 
-// const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
-//   const user = useUser()
-//   const businesses = useBusinesses()
-//   const yelpBusinesses = useGetYelpBusinesses(
-//     {
-//       ...party.location,
-//       ...party.params,
-//     },
-//     {
-//       enabled: !businesses.isLoading,
-//       onSuccess(yelpBusinesses) {
-//         const pages = yelpBusinesses.pages
-//         if (pages && pages.length > 0) {
-//           const lastPage = pages[pages.length - 1]
-//           // Filter out businesses this user has blocked
-//           const newCards = lastPage.businesses.filter(yelpBusiness => {
-//             return (
-//               businesses.data!.blocked.findIndex(
-//                 business => business.id === yelpBusiness.id
-//               ) === -1
-//             )
-//           })
-
-//           if (pages.length === 1 && cards.length === 0) {
-//             setCards(newCards.splice(0, 3).reverse())
-//           }
-
-//           setAllCards(prev => [...prev, ...newCards])
-//         }
-//       },
-//     }
-//   )
-
-//   const [allCards, setAllCards] = React.useState<YelpBusiness[]>(() => {
-//     if (!yelpBusinesses.data) {
-//       return []
-//     }
-
-//     return yelpBusinesses.data.pages
-//       .flat()
-//       .map(({ businesses }) => businesses)
-//       .flat()
-//   })
-
-//   const [cards, setCards] = React.useState<YelpBusiness[]>(() => {
-//     const initialCards = allCards.slice(0, 3).reverse()
-//     setAllCards(prevAllCards => prevAllCards.slice(3))
-//     return initialCards
-//   })
-
-//   const swipeMutation = useMutation<
-//     void,
-//     unknown,
-//     { business: YelpBusiness; action: SwipeAction }
-//   >(async data =>
-//     PartiesService.swipe(party.id, data.business.id, user.uid, data.action)
-//   )
-
-//   const handleSwipe = React.useCallback(
-//     (action: SwipeAction, business?: YelpBusiness) => {
-//       if (business) {
-//         swipeMutation.mutate({
-//           action,
-//           business,
-//         })
-//       }
-//     },
-//     [swipeMutation]
-//   )
-
-//   const { data, isFetchingNextPage, fetchNextPage, hasNextPage } =
-//     yelpBusinesses
-
-//   React.useEffect(() => {
-//     const pageNum = data ? data.pages.length : 0
-//     if (allCards.length < 20 && hasNextPage && !isFetchingNextPage) {
-//       fetchNextPage({
-//         pageParam: pageNum * 20,
-//       })
-//     }
-//   }, [allCards, data, hasNextPage, isFetchingNextPage, fetchNextPage])
-
-//   const [dragStart, setDragStart] = React.useState<{
-//     axis: 'x' | 'y' | null
-//     animation: {
-//       x: number
-//       y: number
-//     }
-//   }>({
-//     axis: null,
-//     animation: { x: 0, y: 0 },
-//   })
-
-//   const x = useMotionValue(0)
-//   const y = useMotionValue(0)
-
-//   const scale = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [1, 0.5, 1]
-//   )
-
-//   const shadowBlur = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [0, 25, 0]
-//   )
-
-//   const shadowOpacity = useTransform(
-//     dragStart.axis === 'x' ? x : y,
-//     [-800, 0, 800],
-//     [0, 0.2, 0]
-//   )
-
-//   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
-
-//   const onDirectionLock = React.useCallback(
-//     (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
-//     [dragStart, setDragStart]
-//   )
-
-//   const animateCardSwipe = React.useCallback(
-//     (action: SwipeAction) => {
-//       handleSwipe(action, cards[cards.length - 1])
-
-//       if (action === 'like') {
-//         setDragStart({ ...dragStart, animation: { x: 800, y: 0 } })
-//       } else if (action === 'dislike') {
-//         setDragStart({ ...dragStart, animation: { x: -800, y: 0 } })
-//       } else if (action === 'super-like') {
-//         setDragStart({ ...dragStart, animation: { x: 0, y: -800 } })
-//       }
-
-//       setTimeout(() => {
-//         setDragStart({ axis: null, animation: { x: 0, y: 0 } })
-
-//         x.set(0)
-//         y.set(0)
-
-//         setCards([...allCards.slice(0, 1), ...cards.slice(0, cards.length - 1)])
-//         setAllCards(allCards.slice(1))
-//       }, 200)
-//     },
-//     [handleSwipe, dragStart, x, y, allCards, cards]
-//   )
-
-//   const onDragEnd = React.useCallback(
-//     (info: PanInfo) => {
-//       if (dragStart.axis === 'x') {
-//         if (info.offset.x >= 300) animateCardSwipe('like')
-//         else if (info.offset.x <= -300) animateCardSwipe('dislike')
-//       } else {
-//         if (info.offset.y <= -300) animateCardSwipe('super-like')
-//       }
-//     },
-//     [dragStart, animateCardSwipe]
-//   )
-
-//   const renderCards = () => {
-//     return cards.map((business, index) =>
-//       index === cards.length - 1 ? (
-//         <BusinessCard
-//           key={business.id ? `${business.id}-${index}` : index}
-//           business={business}
-//           style={{ x, y, zIndex: index }}
-//           onDirectionLock={axis => onDirectionLock(axis)}
-//           onDragEnd={(e, info) => onDragEnd(info)}
-//           animate={dragStart.animation}
-//         />
-//       ) : (
-//         <BusinessCard
-//           key={business.id ? `${business.id}-${index}` : index}
-//           business={business}
-//           style={{
-//             scale,
-//             boxShadow,
-//             zIndex: index,
-//           }}
-//         />
-//       )
-//     )
-//   }
-
-//   return (
-//     <div style={{ height: '100%', position: 'relative' }}>
-//       <Box
-//         height='100%'
-//         maxHeight={600}
-//         position='relative'
-//         display='flex'
-//         justifyContent='center'
-//         alignItems='center'
-//         overflow='hidden'
-//       >
-//         {yelpBusinesses.isLoading ? (
-//           <Skeleton variant='rectangular' width='100%' height='100%' />
-//         ) : (
-//           renderCards()
-//         )}
-//       </Box>
-//       <ActionButtons
-//         businesses={businesses}
-//         currentYelpBusiness={cards[cards.length - 1]}
-//         animateCardSwipe={animateCardSwipe}
-//       />
-//     </div>
-//   )
-// }
-
 type PartyActionsAreaProps = {
   party: PopulatedParty
   setParty: React.Dispatch<React.SetStateAction<PopulatedParty | undefined>>
@@ -1395,16 +1192,14 @@ const PartyActionsArea: React.FC<PartyActionsAreaProps> = props => {
     <>
       <Paper
         sx={{
-          p: 4,
+          p: 3,
           height: 'calc(100% - 100px)',
           display: 'flex',
           flexDirection: 'column',
         }}
       >
         <Box display='flex' justifyContent='space-between'>
-          <Typography variant='h6' gutterBottom>
-            {party.name}
-          </Typography>
+          <Typography variant='h6'>{party.name}</Typography>
           <PartyOptionsPopper
             party={party}
             setParty={setParty}

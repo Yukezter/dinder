@@ -72,12 +72,16 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
           sx={{ m: 2, width: 120, height: 120 }}
         />
       </Stack>
-      <Typography variant='body1' fontWeight={600} gutterBottom>
-        About Me
-      </Typography>
-      <Typography variant='body2' paragraph>
-        {userProfile?.about}
-      </Typography>
+      {userProfile.about && (
+        <>
+          <Typography variant='body1' fontWeight={600} gutterBottom>
+            About Me
+          </Typography>
+          <Typography variant='body2' paragraph>
+            {userProfile.about}
+          </Typography>
+        </>
+      )}
       <Box display='flex' mb={1}>
         {isContact(userProfile.uid) ? (
           <IconButton
