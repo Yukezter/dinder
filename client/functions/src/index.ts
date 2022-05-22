@@ -4,12 +4,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import * as admin from 'firebase-admin'
 import * as functions from 'firebase-functions'
-import {
-  FieldPath,
-  FieldValue,
-  Timestamp,
-  Transaction,
-} from 'firebase-admin/firestore'
+import { FieldPath, FieldValue, Timestamp, Transaction } from 'firebase-admin/firestore'
 import algoliasearch from 'algoliasearch'
 import axios from 'axios'
 import { ValidateOption } from 'async-validator'
@@ -38,10 +33,7 @@ const firestore = admin.firestore()
 const db = admin.database()
 
 // Algolia
-const client = algoliasearch(
-  functions.config().algolia.id,
-  functions.config().algolia.key
-)
+const client = algoliasearch(functions.config().algolia.id, functions.config().algolia.key)
 
 const search = client.initIndex('users')
 
@@ -131,9 +123,7 @@ type Match = {
   details: Business['details']
 }
 
-const usernames = firestore
-  .collection('usernames')
-  .withConverter(converter<Username>())
+const usernames = firestore.collection('usernames').withConverter(converter<Username>())
 
 const users = firestore.collection('users').withConverter(converter<User>())
 
@@ -141,28 +131,18 @@ const contacts = firestore
   .collection('contacts')
   .withConverter(converter<{ [userId: string]: boolean }>())
 
-const parties = firestore
-  .collection('parties')
-  .withConverter(converter<Party>())
+const parties = firestore.collection('parties').withConverter(converter<Party>())
 
-const members = firestore
-  .collection('members')
-  .withConverter(converter<Members>())
+const members = firestore.collection('members').withConverter(converter<Members>())
 
 const matches = (partyId: string) =>
-  firestore
-    .collection(`parties/${partyId}/matches`)
-    .withConverter(converter<Match>())
+  firestore.collection(`parties/${partyId}/matches`).withConverter(converter<Match>())
 
 const swipes = (partyId: string) =>
-  firestore
-    .collection(`parties/${partyId}/swipes`)
-    .withConverter(converter<Swipes>())
+  firestore.collection(`parties/${partyId}/swipes`).withConverter(converter<Swipes>())
 
 const offsets = (partyId: string) =>
-  firestore
-    .doc(`offsets/${partyId}`)
-    .withConverter(converter<{ [userId: string]: number }>())
+  firestore.doc(`offsets/${partyId}`).withConverter(converter<{ [userId: string]: number }>())
 
 /* ---------- HELPER FUNCTIONS ---------- */
 
@@ -396,26 +376,24 @@ export const onFileUpload = functions.storage
 
 /* ON FILE DELETE */
 
-export const onFileDelete = functions.storage
-  .object()
-  .onDelete(async object => {
-    const { contentType, name } = object
+export const onFileDelete = functions.storage.object().onDelete(async object => {
+  const { contentType, name } = object
 
-    console.log(object)
+  console.log(object)
 
-    if (!contentType?.startsWith('image/')) {
-      return functions.logger.log('This is not an image.')
-    }
+  if (!contentType?.startsWith('image/')) {
+    return functions.logger.log('This is not an image.')
+  }
 
-    if (!name?.endsWith('profilePhoto')) {
-      return functions.logger.log('This is not valid file name.')
-    }
+  if (!name?.endsWith('profilePhoto')) {
+    return functions.logger.log('This is not valid file name.')
+  }
 
-    const uid = object.name!.split('/')[1]
-    await users.doc(uid).update({
-      photoURL: defaultPhotoURL,
-    })
+  const uid = object.name!.split('/')[1]
+  await users.doc(uid).update({
+    photoURL: defaultPhotoURL,
   })
+})
 
 /* ON SWIPE */
 
@@ -426,9 +404,7 @@ const checkForMatches = async (
   swipes: Swipes,
   yelpId: string
 ) => {
-  const superLikeMatch = memberIds.every(
-    id => swipes[id]?.action === 'super-like'
-  )
+  const superLikeMatch = memberIds.every(id => swipes[id]?.action === 'super-like')
 
   const likeMatch = memberIds.every(
     id => swipes[id]?.action === 'like' || swipes[id]?.action === 'super-like'
@@ -450,9 +426,7 @@ const checkForMatches = async (
       price: business.price,
       rating: business.rating,
       reviews: business.review_count,
-      categories: business.categories
-        .map(({ title }: { title: string }) => title)
-        .join(', '),
+      categories: business.categories.map(({ title }: { title: string }) => title).join(', '),
       location: `${business.location.city}, ${business.location.state}`.concat(
         `, ${business.location.country}`
       ),
@@ -535,61 +509,59 @@ type UpdateUserDto = {
   about?: string
 }
 
-export const updateUser = functions.https.onCall(
-  async (data: UpdateUserDto, context) => {
-    if (!context.auth || !context.auth.uid) {
-      throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
-    }
-
-    const { auth } = context
-
-    await firestore.runTransaction(
-      async tx => {
-        const usernameRef = usernames.doc(data.username)
-        const usernameDoc = await tx.get(usernameRef)
-        const usernameData = usernameDoc.data()
-
-        try {
-          await validators.updateUser.validate(data, {
-            firstFields: true,
-            uid: auth.uid,
-            usernameData,
-          } as ValidateOption)
-        } catch (e) {
-          const validationError = e as AsyncValidationError
-          throw new functions.https.HttpsError(
-            'invalid-argument',
-            validationError.message,
-            validationError.errors
-          )
-        }
-
-        // Skip username update if username hasn't changed
-        if (!usernameData) {
-          // Delete any existing usernames that belong to this user
-          const usernamesQuery = usernames.where('uid', '==', auth.uid)
-          const usernamesSnapshot = await tx.get(usernamesQuery)
-          usernamesSnapshot.docs.forEach(doc => tx.delete(doc.ref))
-
-          // Assign the new username to this user
-          tx.create(usernameRef, { uid: auth.uid })
-        }
-
-        // Update user
-        tx.update(users.doc(auth.uid), data)
-      },
-      {
-        maxAttempts: 3,
-      }
-    )
-
-    if (context.auth.token.accessLevel === 0) {
-      await updateCustomUserClaims(auth.uid, {
-        accessLevel: 1,
-      })
-    }
+export const updateUser = functions.https.onCall(async (data: UpdateUserDto, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
   }
-)
+
+  const { auth } = context
+
+  await firestore.runTransaction(
+    async tx => {
+      const usernameRef = usernames.doc(data.username)
+      const usernameDoc = await tx.get(usernameRef)
+      const usernameData = usernameDoc.data()
+
+      try {
+        await validators.updateUser.validate(data, {
+          firstFields: true,
+          uid: auth.uid,
+          usernameData,
+        } as ValidateOption)
+      } catch (e) {
+        const validationError = e as AsyncValidationError
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          validationError.message,
+          validationError.errors
+        )
+      }
+
+      // Skip username update if username hasn't changed
+      if (!usernameData) {
+        // Delete any existing usernames that belong to this user
+        const usernamesQuery = usernames.where('uid', '==', auth.uid)
+        const usernamesSnapshot = await tx.get(usernamesQuery)
+        usernamesSnapshot.docs.forEach(doc => tx.delete(doc.ref))
+
+        // Assign the new username to this user
+        tx.create(usernameRef, { uid: auth.uid })
+      }
+
+      // Update user
+      tx.update(users.doc(auth.uid), data)
+    },
+    {
+      maxAttempts: 3,
+    }
+  )
+
+  if (context.auth.token.accessLevel === 0) {
+    await updateCustomUserClaims(auth.uid, {
+      accessLevel: 1,
+    })
+  }
+})
 
 /* ADD CONTACT */
 
@@ -597,42 +569,37 @@ type AddContactDto = {
   contactId: string
 }
 
-export const addContact = functions.https.onCall(
-  async (data: AddContactDto, context) => {
-    if (!context.auth || !context.auth.uid) {
-      throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
-    }
-
-    if (context.auth?.token?.accessLevel !== 1) {
-      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
-    }
-
-    const { uid } = context.auth
-
-    if (uid === data.contactId) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'Invalid user id'
-      )
-    }
-
-    try {
-      await firestore.runTransaction(async tx => {
-        const contactSnapshot = await tx.get(users.doc(data.contactId))
-        const contact = contactSnapshot.data()
-
-        if (!contact) {
-          throw new functions.https.HttpsError('not-found', 'No user found')
-        }
-
-        tx.set(contacts.doc(uid), { [data.contactId]: true }, { merge: true })
-      })
-    } catch (error) {
-      console.log(error)
-      throw error
-    }
+export const addContact = functions.https.onCall(async (data: AddContactDto, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
   }
-)
+
+  if (context.auth?.token?.accessLevel !== 1) {
+    throw new functions.https.HttpsError('unauthenticated', 'Access denied')
+  }
+
+  const { uid } = context.auth
+
+  if (uid === data.contactId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid user id')
+  }
+
+  try {
+    await firestore.runTransaction(async tx => {
+      const contactSnapshot = await tx.get(users.doc(data.contactId))
+      const contact = contactSnapshot.data()
+
+      if (!contact) {
+        throw new functions.https.HttpsError('not-found', 'No user found')
+      }
+
+      tx.set(contacts.doc(uid), { [data.contactId]: true }, { merge: true })
+    })
+  } catch (error) {
+    console.log(error)
+    throw error
+  }
+})
 
 type DeleteContactDto = {
   contactId: string
@@ -640,232 +607,203 @@ type DeleteContactDto = {
 
 /* DELETE CONTACT */
 
-export const deleteContact = functions.https.onCall(
-  async (data: DeleteContactDto, context) => {
-    if (!context.auth || !context.auth.uid) {
-      throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
-    }
+export const deleteContact = functions.https.onCall(async (data: DeleteContactDto, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+  }
 
-    if (context.auth?.token?.accessLevel !== 1) {
-      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
-    }
+  if (context.auth?.token?.accessLevel !== 1) {
+    throw new functions.https.HttpsError('unauthenticated', 'Access denied')
+  }
 
-    const { uid } = context.auth
+  const { uid } = context.auth
 
-    if (uid === data.contactId) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'Invalid user id'
-      )
-    }
+  if (uid === data.contactId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid user id')
+  }
 
+  try {
+    await contacts.doc(uid).update({
+      [data.contactId]: FieldValue.delete(),
+    })
+  } catch (error) {
+    console.log(error)
+  }
+})
+
+/* BLOCK CONTACT */
+
+export const blockContact = functions.https.onCall(async (data: DeleteContactDto, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+  }
+
+  if (context.auth?.token?.accessLevel !== 1) {
+    throw new functions.https.HttpsError('unauthenticated', 'Access denied')
+  }
+
+  const { uid } = context.auth
+
+  if (uid === data.contactId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid user id')
+  }
+
+  firestore.runTransaction(async tx => {
     try {
-      await contacts.doc(uid).update({
-        [data.contactId]: FieldValue.delete(),
+      const contactSnapshot = await tx.get(users.doc(data.contactId))
+      const contact = contactSnapshot.data()
+
+      // Ensure contact exists
+      if (!contact) {
+        throw new functions.https.HttpsError('not-found', 'No user found')
+      }
+
+      const partiesQuery = parties.where('members', 'array-contains', [uid, contact.uid])
+      const partiesSnapshot = await tx.get(partiesQuery)
+
+      // Remove contact from this user's parties
+      // and remove this user from contact's parties
+      partiesSnapshot.forEach(partyDoc => {
+        const party = partyDoc.data()
+        if (party.admin === uid) {
+          tx.update(partyDoc.ref, {
+            members: FieldValue.arrayRemove(contact.uid),
+          })
+        } else if (party.admin === contact.uid) {
+          tx.update(partyDoc.ref, {
+            members: FieldValue.arrayRemove(uid),
+          })
+        }
+      })
+
+      tx.update(contacts.doc(uid), {
+        [data.contactId]: false,
       })
     } catch (error) {
       console.log(error)
     }
-  }
-)
-
-/* BLOCK CONTACT */
-
-export const blockContact = functions.https.onCall(
-  async (data: DeleteContactDto, context) => {
-    if (!context.auth || !context.auth.uid) {
-      throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
-    }
-
-    if (context.auth?.token?.accessLevel !== 1) {
-      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
-    }
-
-    const { uid } = context.auth
-
-    if (uid === data.contactId) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'Invalid user id'
-      )
-    }
-
-    firestore.runTransaction(async tx => {
-      try {
-        const contactSnapshot = await tx.get(users.doc(data.contactId))
-        const contact = contactSnapshot.data()
-
-        // Ensure contact exists
-        if (!contact) {
-          throw new functions.https.HttpsError('not-found', 'No user found')
-        }
-
-        const partiesQuery = parties.where('members', 'array-contains', [
-          uid,
-          contact.uid,
-        ])
-        const partiesSnapshot = await tx.get(partiesQuery)
-
-        // Remove contact from this user's parties
-        // and remove this user from contact's parties
-        partiesSnapshot.forEach(partyDoc => {
-          const party = partyDoc.data()
-          if (party.admin === uid) {
-            tx.update(partyDoc.ref, {
-              members: FieldValue.arrayRemove(contact.uid),
-            })
-          } else if (party.admin === contact.uid) {
-            tx.update(partyDoc.ref, {
-              members: FieldValue.arrayRemove(uid),
-            })
-          }
-        })
-
-        tx.update(contacts.doc(uid), {
-          [data.contactId]: false,
-        })
-      } catch (error) {
-        console.log(error)
-      }
-    })
-  }
-)
+  })
+})
 
 /* CREATE PARTY */
 
 type UpdatePartyDto = Party
 
-export const updateParty = functions.https.onCall(
-  async (data: UpdatePartyDto, context) => {
-    if (!context.auth || !context.auth.uid) {
-      throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
-    }
+const equalArr = (a: string[], b: string[]) => {
+  return a.sort().join() === b.sort().join()
+}
 
-    if (context.auth?.token?.accessLevel !== 1) {
-      throw new functions.https.HttpsError('unauthenticated', 'Access denied')
-    }
+export const updateParty = functions.https.onCall(async (data: UpdatePartyDto, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Unauthenticated')
+  }
 
-    const { uid } = context.auth
+  if (context.auth?.token?.accessLevel !== 1) {
+    throw new functions.https.HttpsError('unauthenticated', 'Access denied')
+  }
 
-    // Make sure authenticated user is party admin
-    if (uid !== data.admin) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'Only the party admin can update party settings'
-      )
-    }
+  const { uid } = context.auth
 
-    if (!data.members.includes(uid)) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'You must be a member of your own party!'
-      )
-    }
+  // Make sure authenticated user is party admin
+  if (uid !== data.admin) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Only the party admin can update party settings'
+    )
+  }
 
-    try {
-      await validators.updateParty.validate(data, { firstFields: true })
-    } catch (e) {
-      const validationError = e as AsyncValidationError
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        validationError.message,
-        validationError.errors
-      )
-    }
+  if (!data.members.includes(uid)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'You must be a member of your own party!'
+    )
+  }
 
-    await firestore.runTransaction(async tx => {
-      // Validate all party members
-      const membersQuery = users.where(
-        FieldPath.documentId(),
-        'in',
-        data.members
-      )
+  try {
+    await validators.updateParty.validate(data, { firstFields: true })
+  } catch (e) {
+    const validationError = e as AsyncValidationError
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      validationError.message,
+      validationError.errors
+    )
+  }
 
-      const membersSnapshot = await tx.get(membersQuery)
-      let memberIds = membersSnapshot.docs.map(doc => {
-        if (!doc.exists) {
-          throw new functions.https.HttpsError(
-            'invalid-argument',
-            'Invalid member id'
-          )
-        }
+  await firestore.runTransaction(async tx => {
+    // Validate all party members
+    const membersQuery = users.where(FieldPath.documentId(), 'in', data.members)
 
-        return doc.id
-      })
-
-      // Filter out any members that have blocked this user
-      const contactsQuery = contacts.where(
-        FieldPath.documentId(),
-        'in',
-        memberIds
-      )
-
-      const contactsSnapshot = await tx.get(contactsQuery)
-      memberIds = memberIds.filter(memberId => {
-        const member = contactsSnapshot.docs.find(doc => doc.id === memberId)
-        return member?.data()[uid] !== false
-      })
-
-      if (memberIds.length < 2) {
-        throw new functions.https.HttpsError(
-          'invalid-argument',
-          'Party must have at least one member!'
-        )
+    const membersSnapshot = await tx.get(membersQuery)
+    let memberIds = membersSnapshot.docs.map(doc => {
+      if (!doc.exists) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid member id')
       }
 
-      const partyRef = parties.doc(data.id)
-      const partySnapshot = await tx.get(partyRef)
-      const party = partySnapshot.data()
-      if (party) {
-        const isNewPlace = party.location.place_id !== data.location.place_id
-        const isNewRadius = party.params.radius !== data.params.radius
-        const isNewPrice = party.params.price !== data.params.price
-        const isNewCategories =
-          party.params.categories !== data.params.categories
-        const isNewParams =
-          isNewPlace || isNewRadius || isNewPrice || isNewCategories
-        if (isNewParams) {
-          const offsetsRef = offsets(party.id)
-          const newOffsets = party.members.reduce<{
-            [userId: string]: number
-          }>((acc, curr) => {
-            acc[curr] = 0
-            return acc
-          }, {})
-          tx.set(offsetsRef, newOffsets)
-        }
-      }
+      return doc.id
+    })
 
-      // Create/update the party
-      tx.set(
-        partyRef,
-        {
-          ...data,
-          createdAt: new Timestamp(
-            data.createdAt.seconds,
-            data.createdAt.nanoseconds
-          ),
-          lastActive: new Timestamp(
-            data.lastActive.seconds,
-            data.lastActive.nanoseconds
-          ),
-        },
-        { merge: true }
+    // Filter out any members that have blocked this user
+    const contactsQuery = contacts.where(FieldPath.documentId(), 'in', memberIds)
+
+    const contactsSnapshot = await tx.get(contactsQuery)
+    memberIds = memberIds.filter(memberId => {
+      const member = contactsSnapshot.docs.find(doc => doc.id === memberId)
+      return member?.data()[uid] !== false
+    })
+
+    if (memberIds.length < 2) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Party must have at least one member!'
       )
+    }
 
-      // Create members document for fast members reads
-      const membersRef = members.doc(partyRef.id)
+    const partyRef = parties.doc(data.id)
+    const partySnapshot = await tx.get(partyRef)
+    const party = partySnapshot.data()
+    if (party) {
+      const isNewPlace = party.location.place_id !== data.location.place_id
+      const isNewRadius = party.params.radius !== data.params.radius
+      const isNewPrice = party.params.price !== data.params.price
+      const isNewCategories = equalArr(party.params.categories, data.params.categories)
+      const isNewParams = isNewPlace || isNewRadius || isNewPrice || isNewCategories
 
-      tx.set(
-        membersRef,
-        memberIds.reduce<Members>((acc, id) => {
-          acc[id] = true
+      if (isNewParams) {
+        const offsetsRef = offsets(party.id)
+        const newOffsets = party.members.reduce<{
+          [userId: string]: number
+        }>((acc, curr) => {
+          acc[curr] = 0
           return acc
         }, {})
-      )
-    })
-  }
-)
+        tx.set(offsetsRef, newOffsets)
+      }
+    }
+
+    // Create/update the party
+    tx.set(
+      partyRef,
+      {
+        ...data,
+        createdAt: new Timestamp(data.createdAt.seconds, data.createdAt.nanoseconds),
+        lastActive: new Timestamp(data.lastActive.seconds, data.lastActive.nanoseconds),
+      },
+      { merge: true }
+    )
+
+    // Create members document for fast members reads
+    const membersRef = members.doc(partyRef.id)
+
+    tx.set(
+      membersRef,
+      memberIds.reduce<Members>((acc, id) => {
+        acc[id] = true
+        return acc
+      }, {})
+    )
+  })
+})
 
 /* LEAVE PARTY */
 
@@ -942,19 +880,13 @@ export const getYelpBusinesses = functions.https.onCall(
     }
 
     if (!data || !data.description || !data.latitude || !data.longitude) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'No options provided!'
-      )
+      throw new functions.https.HttpsError('invalid-argument', 'No options provided!')
     }
 
     try {
       const meters = milesToMeters(data.radius)
       const radius = meters > 40000 ? 17000 : meters
-      const categories =
-        data.categories.length > 0
-          ? data.categories.join(',')
-          : 'food,restaurants'
+      const categories = data.categories.length > 0 ? data.categories.join(',') : 'food,restaurants'
 
       const params = {
         ...data,

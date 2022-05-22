@@ -25,7 +25,7 @@ module.exports = {
   rules: {
     'linebreak-style': 0,
     'operator-linebreak': 0,
-    'max-len': ['error', { code: 90 }],
+    'max-len': ['error', { code: 100 }],
     quotes: ['error', 'single'],
     'import/no-unresolved': 0,
     semi: ['error', 'never'],

@@ -3,19 +3,29 @@ import { Navigate } from 'react-router-dom'
 import { useMutation } from 'react-query'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import { styled } from '@mui/material/styles'
-import Grid from '@mui/material/Grid'
+import AppBar from '@mui/material/AppBar'
+import Toolbar from '@mui/material/Toolbar'
 import Box from '@mui/material/Box'
+import Container from '@mui/material/Container'
+import Grid from '@mui/material/Grid'
+import Hidden from '@mui/material/Hidden'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import ToggleButton from '@mui/material/ToggleButton'
 import Typography from '@mui/material/Typography'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import LocalDiningTwoToneIcon from '@mui/icons-material/LocalDiningTwoTone'
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 
 import { AuthService } from '../services/auth'
 import { useAuth } from '../context/AuthContext'
-import landingImage from '../assets/images/food.jpg'
-import backgroundImage from '../assets/images/background.svg'
-import { Button, FormAlert, TextField, FormPaper } from '../common/components'
+import {
+  Button,
+  FormAlert,
+  TextField,
+  FormPaper,
+  IconButton,
+} from '../common/components'
 
 type SignUpFormInputs = {
   email: string
@@ -212,32 +222,80 @@ const AuthForm: React.FC = () => {
   )
 }
 
-const RootGrid = styled(Grid)(({ theme }) => ({
-  height: '100vh',
-  backgroundImage: `url(${backgroundImage})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'right',
-  '& > div': {
+const Root = styled(Box)(({ theme }) => ({
+  minHeight: '100vh',
+  overflow: 'hidden',
+  background: 'linear-gradient(#de59a9, #fa6715)',
+  position: 'relative',
+  [theme.breakpoints.up('md')]: {
     height: '100vh',
   },
 }))
 
-const LandingImg = styled('img')(({ theme }) => ({
-  height: '100%',
-  width: '100%',
-  objectFit: 'cover',
-  position: 'relative',
-  '::after': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    background: 'rgba(0,0,0,0.3)',
-  },
-}))
+const Typewriter = () => {
+  const [text, setText] = React.useState<string[]>([])
+  const charNumRef = React.useRef(0)
+  const [fadeIn, setFadeIn] = React.useState(false)
+
+  React.useEffect(() => {
+    const allText = 'Discover eateries faster than ever...'
+    const delta = 200 - Math.random() * 100
+
+    const tick = () => {
+      if (charNumRef.current < allText.length) {
+        setText(prevText => [...prevText, allText[charNumRef.current]])
+        ++charNumRef.current
+        setTimeout(() => {
+          tick()
+        }, delta)
+      } else {
+        setFadeIn(true)
+      }
+    }
+
+    tick()
+  }, [])
+
+  return (
+    <>
+      <Typography
+        variant='h3'
+        color='inherit'
+        fontWeight={700}
+        gutterBottom
+        maxWidth={{ xs: 400, md: 600 }}
+      >
+        {text.map((char, index) => (
+          <span
+            style={{
+              borderRight:
+                index === text.length - 1 ? '1px solid white' : 'none',
+            }}
+          >
+            {char}
+          </span>
+        ))}
+      </Typography>
+      <Typography
+        component='div'
+        variant='body1'
+        color='inherit'
+        sx={{
+          opacity: 0,
+          ...(fadeIn && {
+            animation: 'show 200ms forwards',
+          }),
+          '@keyframes show': {
+            from: { opacity: 0 },
+            to: { opacity: 1 },
+          },
+        }}
+      >
+        Invite friends, swipe through restaurants, and match!
+      </Typography>
+    </>
+  )
+}
 
 const Landing = () => {
   const auth = useAuth()
@@ -246,21 +304,88 @@ const Landing = () => {
     return <Navigate to='/dashboard' replace />
   }
 
+  const scrollToBottom = () => {
+    const scrollEl = document.scrollingElement || document.body
+    window.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' })
+  }
+
   return (
-    <Box minHeight='100vh' display='flex' overflow='hidden'>
-      <RootGrid container>
-        <Grid item xs md={5}>
-          <LandingImg src={landingImage} alt='' />
+    <Root>
+      <AppBar position='absolute' color='transparent' elevation={0}>
+        <Toolbar>
+          <Typography
+            variant='h6'
+            fontWeight={800}
+            color='white'
+            display='inline-block'
+            width='auto'
+            mx='auto'
+            py={2}
+          >
+            <Box display='flex' alignItems='center'>
+              <span>Dinder</span>
+              <LocalDiningTwoToneIcon />
+            </Box>
+          </Typography>
+        </Toolbar>
+      </AppBar>
+      <Container sx={{ height: '100%' }}>
+        <Grid container height={{ md: '100%' }}>
+          <Grid
+            item
+            xs={12}
+            md={6}
+            container
+            height={{ xs: '100vh', md: 'auto' }}
+            position='relative'
+          >
+            <Box m='auto' mr={{ md: 'unset' }} color='white' display='inline'>
+              <Typewriter />
+            </Box>
+            <Hidden mdUp>
+              <Box
+                display='flex'
+                justifyContent='center'
+                position='absolute'
+                bottom={16}
+                left={0}
+                right={0}
+                sx={{
+                  transform: 'translateY(0)',
+                  animation: 'bounce 2s infinite',
+                  '@keyframes bounce': {
+                    '0%': { transform: 'translateY(0)' },
+                    '50%': { transform: 'translateY(8px)' },
+                    '100%': { transform: 'translateY(0)' },
+                  },
+                }}
+              >
+                <IconButton
+                  size='small'
+                  sx={{ mx: 'auto', color: 'white' }}
+                  onClick={scrollToBottom}
+                >
+                  <ArrowDownwardIcon />
+                </IconButton>
+              </Box>
+            </Hidden>
+          </Grid>
+          <Grid
+            item
+            xs={12}
+            md={6}
+            container
+            height={{ xs: '100vh', md: 'auto' }}
+          >
+            <Box m='auto'>
+              <FormPaper>
+                <AuthForm />
+              </FormPaper>
+            </Box>
+          </Grid>
         </Grid>
-        <Grid item xs={12} md={7} container>
-          <Box m='auto'>
-            <FormPaper>
-              <AuthForm />
-            </FormPaper>
-          </Box>
-        </Grid>
-      </RootGrid>
-    </Box>
+      </Container>
+    </Root>
   )
 }
 

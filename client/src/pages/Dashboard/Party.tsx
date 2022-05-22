@@ -293,11 +293,6 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
             </Grid>
           </Grid>
         </CardContent>
-        {/* <CardActions disableSpacing>
-          <IconButton aria-label='add to favorites'>
-            <FavoriteIcon />
-          </IconButton>
-        </CardActions> */}
       </Card>
     </Dialog>
   )
@@ -413,7 +408,6 @@ const useToggleBusiness = (
 type MatchListItemProps = {
   isLoading?: boolean
   match?: Match
-  // businesses: UseQueryResult<BusinessesData, unknown>
 }
 
 const MatchListItem: React.FC<MatchListItemProps> = props => {
@@ -550,7 +544,6 @@ const Matches: React.FC<MatchesProps> = ({ partyId, closeMatches }) => {
     setIsOpen(false)
   }, [])
 
-  // const isLoading = !matches.isFetched || businesses.isLoading
   const isLoading = !matches.isFetched
 
   return (
@@ -901,16 +894,15 @@ type InfiniteCardsProps = {
 const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   const user = useUser()
   const businesses = useBusinesses()
-  const { location, params } = party
 
   const initialOffset = useInitialOffset([
     'cards',
     user.uid,
     party.id,
-    location.place_id,
-    params.radius,
-    params.price,
-    params.categories.join(),
+    party.location.place_id,
+    party.params.radius,
+    party.params.price,
+    party.params.categories.join(),
   ])
 
   const yelpBusinesses = useGetYelpBusinesses(
@@ -921,8 +913,8 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
     },
     {
       enabled: !businesses.isLoading && !initialOffset.isLoading,
-      onSuccess(yelpBusinesses) {
-        const pages = yelpBusinesses.pages
+      onSuccess(data) {
+        const pages = data.pages
         if (pages && pages.length > 0) {
           const lastPage = pages[pages.length - 1]
           // Filter out businesses this user has blocked
