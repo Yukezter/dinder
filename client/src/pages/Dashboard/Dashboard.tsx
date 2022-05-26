@@ -238,7 +238,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
                 sx={{ mr: 1 }}
               />
               <Typography component='span' variant='body2'>
-                {!party ? <Skeleton width='50%' /> : admin?.username}
+                {!party ? <Skeleton width={50} /> : admin?.username}
               </Typography>
             </Box>
           }
@@ -252,7 +252,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
           textOverflow='ellipsis'
         >
           {!party ? (
-            <Skeleton width='75%' />
+            <Skeleton width='80%' />
           ) : (
             <Link
               to={`/party/${party.id}`}
@@ -280,7 +280,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
         p={2}
         pt={0}
       >
-        {!party ? <Skeleton width='90%' /> : party.location.description}
+        {!party ? <Skeleton width='60%' /> : party.location.description}
       </Typography>
     </Card>
   )
@@ -656,7 +656,7 @@ const Dashboard = () => {
           </Grid>
           {parties.cards.map((party, index) => (
             <Grid key={!party ? index : party.id} item xs={6} lg={3}>
-              <PartyCard party={party} index={index} />
+              <PartyCard index={index} />
             </Grid>
           ))}
         </Grid>
