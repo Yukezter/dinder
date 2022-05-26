@@ -637,8 +637,8 @@ const Dashboard = () => {
   }, [isPlaceholderData])
 
   return (
-    <>
-      <Typography variant='h6' paragraph>
+    <Box display='flex' flexDirection='column' flex={1} minHeight={{ lg: 0 }}>
+      <Typography variant='h6' pb={2}>
         {user.username && `Welcome back, @${user.username}!`}
       </Typography>
       <Paper sx={{ p: 3, mb: 4 }}>
@@ -661,12 +661,7 @@ const Dashboard = () => {
           ))}
         </Grid>
       </Paper>
-      <Box
-        display='flex'
-        p={1}
-        m={-1}
-        sx={{ overflow: { lg: 'hidden' }, height: { lg: '100%' } }}
-      >
+      <Box display='flex' flex={1} minHeight={{ lg: 0 }}>
         <Grid container rowSpacing={4} columnSpacing={4}>
           <Grid item xs={12} lg={8} height={{ xs: 'auto', lg: '100%' }}>
             <PartiesTable data={parties.table} columns={columns} />
@@ -676,7 +671,7 @@ const Dashboard = () => {
           </Grid>
         </Grid>
       </Box>
-    </>
+    </Box>
   )
 }
 

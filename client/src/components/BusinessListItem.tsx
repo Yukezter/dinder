@@ -71,6 +71,7 @@ const BusinessListItem: React.FC<BusinessListItemProps> = ({
               href={details.url}
               height={24}
               width={24}
+              fontSize='small'
               position='absolute'
               top={4}
               right={4}

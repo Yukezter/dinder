@@ -1,5 +1,6 @@
 import React from 'react'
-import { CssBaseline } from '@mui/material'
+import CssBaseline from '@mui/material/CssBaseline'
+import GlobalStyles from '@mui/material/GlobalStyles'
 import { BrowserRouter } from 'react-router-dom'
 import {
   QueryClientProvider,
@@ -9,11 +10,15 @@ import {
   MutationCache,
 } from 'react-query'
 import { ThemeProvider } from '@mui/material'
+import smoothscroll from 'smoothscroll-polyfill'
 
 import theme from './style/theme'
 import api from './app/api'
 import { AuthProvider } from './context/AuthContext'
 import Routes from './routes'
+
+// Polyfill for smooth scrolling
+smoothscroll.polyfill()
 
 const defaultQueryFn: QueryFunction = async ({ queryKey, signal }) => {
   try {
@@ -53,12 +58,33 @@ const queryClient = new QueryClient({
 })
 
 const App = () => {
+  // React.useEffect(() => {
+  //   const setAppHeight = () => {
+  //     const el = document.documentElement
+  //     el.style.setProperty('--app-height', `${window.innerHeight}px`)
+  //   }
+
+  //   window.addEventListener('orientationchange', setAppHeight)
+  //   // window.addEventListener('resize', setAppHeight)
+
+  //   setAppHeight()
+  // }, [])
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+            <GlobalStyles
+              styles={
+                {
+                  // ':root': {
+                  //   '--app-height': '100%',
+                  // },
+                }
+              }
+            />
             <Routes />
           </AuthProvider>
         </QueryClientProvider>

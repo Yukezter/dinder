@@ -2,6 +2,7 @@ import React from 'react'
 import { Navigate } from 'react-router-dom'
 import { useMutation } from 'react-query'
 import { useForm, SubmitHandler } from 'react-hook-form'
+import GlobalStyles from '@mui/material/GlobalStyles'
 import { styled } from '@mui/material/styles'
 import AppBar from '@mui/material/AppBar'
 import Toolbar from '@mui/material/Toolbar'
@@ -223,33 +224,34 @@ const AuthForm: React.FC = () => {
 }
 
 const Root = styled(Box)(({ theme }) => ({
-  minHeight: '100vh',
-  overflow: 'hidden',
-  background: 'linear-gradient(#de59a9, #fa6715)',
+  minHeight: '100%',
+  width: '100%',
+  // background: 'linear-gradient(#de59a9, #fa6715)',
   position: 'relative',
+  overflowY: 'auto',
   [theme.breakpoints.up('md')]: {
-    height: '100vh',
+    height: '100%',
   },
 }))
 
 const Typewriter = () => {
-  const [text, setText] = React.useState<string[]>([])
-  const charNumRef = React.useRef(0)
-  const [fadeIn, setFadeIn] = React.useState(false)
+  const [text, setText] = React.useState('')
+  const charIndex = React.useRef(1)
+  const [isDone, setIsDone] = React.useState(false)
 
   React.useEffect(() => {
     const allText = 'Discover eateries faster than ever...'
-    const delta = 200 - Math.random() * 100
 
     const tick = () => {
-      if (charNumRef.current < allText.length) {
-        setText(prevText => [...prevText, allText[charNumRef.current]])
-        ++charNumRef.current
+      if (charIndex.current <= allText.length) {
+        setText(allText.slice(0, charIndex.current))
+        ++charIndex.current
+        const delta = 150 - Math.random() * 100
         setTimeout(() => {
           tick()
         }, delta)
       } else {
-        setFadeIn(true)
+        setIsDone(true)
       }
     }
 
@@ -265,16 +267,19 @@ const Typewriter = () => {
         gutterBottom
         maxWidth={{ xs: 400, md: 600 }}
       >
-        {text.map((char, index) => (
-          <span
-            style={{
-              borderRight:
-                index === text.length - 1 ? '1px solid white' : 'none',
-            }}
-          >
-            {char}
-          </span>
-        ))}
+        {text}
+        <Box
+          component='span'
+          sx={{
+            borderRight: '1px solid white',
+            ...(isDone && {
+              animation: 'blink 0.8s steps(5, start) infinite',
+            }),
+            '@keyframes blink': {
+              to: { visibility: 'hidden' },
+            },
+          }}
+        />
       </Typography>
       <Typography
         component='div'
@@ -282,7 +287,7 @@ const Typewriter = () => {
         color='inherit'
         sx={{
           opacity: 0,
-          ...(fadeIn && {
+          ...(isDone && {
             animation: 'show 200ms forwards',
           }),
           '@keyframes show': {
@@ -305,38 +310,48 @@ const Landing = () => {
   }
 
   const scrollToBottom = () => {
-    const scrollEl = document.scrollingElement || document.body
-    window.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' })
+    // const scrollEl = document.scrollingElement || document.body
+    const scrollEl = document.getElementById('root')
+    scrollEl?.scrollTo({ top: scrollEl?.scrollHeight, behavior: 'smooth' })
   }
 
   return (
-    <Root>
-      <AppBar position='absolute' color='transparent' elevation={0}>
-        <Toolbar>
-          <Typography
-            variant='h6'
-            fontWeight={800}
-            color='white'
-            display='inline-block'
-            width='auto'
-            mx='auto'
-            py={2}
-          >
-            <Box display='flex' alignItems='center'>
-              <span>Dinder</span>
-              <LocalDiningTwoToneIcon />
-            </Box>
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <Container sx={{ height: '100%' }}>
-        <Grid container height={{ md: '100%' }}>
+    <>
+      <GlobalStyles
+        styles={{
+          body: {
+            '& > div#root': {
+              background: 'linear-gradient(#de59a9, #fa6715)',
+            },
+          },
+        }}
+      />
+      <Container sx={{ height: '100%', position: 'relative' }}>
+        <AppBar position='absolute' color='transparent' elevation={0}>
+          <Toolbar>
+            <Typography
+              variant='h6'
+              fontWeight={800}
+              color='white'
+              display='inline-block'
+              width='auto'
+              mx='auto'
+              py={2}
+            >
+              <Box display='flex' alignItems='center'>
+                <span>Dinder</span>
+                <LocalDiningTwoToneIcon />
+              </Box>
+            </Typography>
+          </Toolbar>
+        </AppBar>
+        <Grid container height='100%'>
           <Grid
             item
             xs={12}
             md={6}
             container
-            height={{ xs: '100vh', md: 'auto' }}
+            height={{ xs: '100%', md: 'auto' }}
             position='relative'
           >
             <Box m='auto' mr={{ md: 'unset' }} color='white' display='inline'>
@@ -375,7 +390,7 @@ const Landing = () => {
             xs={12}
             md={6}
             container
-            height={{ xs: '100vh', md: 'auto' }}
+            height={{ xs: '100%', md: 'auto' }}
           >
             <Box m='auto'>
               <FormPaper>
@@ -385,7 +400,7 @@ const Landing = () => {
           </Grid>
         </Grid>
       </Container>
-    </Root>
+    </>
   )
 }
 

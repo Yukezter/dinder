@@ -2,8 +2,9 @@ import axios from 'axios'
 import { auth } from './firebase'
 
 let baseURL = 'https://us-central1-dinder-33ca6.cloudfunctions.net'
-if (global.location.hostname === 'localhost') {
-  baseURL = 'http://localhost:5001/dinder-33ca6/us-central1'
+if (process.env.NODE_ENV === 'development') {
+  const host = global.location.hostname
+  baseURL = `http://${host}:5001/dinder-33ca6/us-central1`
 }
 
 const cloud = axios.create({

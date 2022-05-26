@@ -26,10 +26,11 @@ export const functions = getFunctions(app)
 export const storage = getStorage(app)
 export const analytics = getAnalytics(app)
 
-if (global.location.hostname === 'localhost') {
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
-  connectDatabaseEmulator(db, 'localhost', 9000)
-  connectFirestoreEmulator(firestore, 'localhost', 8080)
-  connectFunctionsEmulator(functions, 'localhost', 5001)
-  connectStorageEmulator(storage, 'localhost', 9199)
+if (process.env.NODE_ENV === 'development') {
+  const host = global.location.hostname
+  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true })
+  connectDatabaseEmulator(db, host, 9000)
+  connectFirestoreEmulator(firestore, host, 8080)
+  connectFunctionsEmulator(functions, host, 5001)
+  connectStorageEmulator(storage, host, 9199)
 }

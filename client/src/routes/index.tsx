@@ -71,14 +71,14 @@ const Routes = () => {
     {
       path: '/*',
       element: (
-        <Box height='100vh' display='flex'>
+        <>
           <GlobalStyles
             styles={{
               body: { background: '#FFF8EF' },
             }}
           />
           <ProtectedRoute />
-        </Box>
+        </>
       ),
       children: [
         {
@@ -124,7 +124,29 @@ const Routes = () => {
   ]
 
   const element = useRoutes(routes)
-  return element
+  return (
+    <>
+      <GlobalStyles
+        styles={{
+          body: {
+            display: 'flex',
+            position: 'fixed',
+            top: 0,
+            bottom: 0,
+            right: 0,
+            left: 0,
+            height: '100%',
+            '& > div#root': {
+              width: '100%',
+              overflowY: 'auto',
+              display: 'flex',
+            },
+          },
+        }}
+      />
+      {element}
+    </>
+  )
 }
 
 export default Routes

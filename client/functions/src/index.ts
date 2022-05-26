@@ -35,7 +35,8 @@ const db = admin.database()
 // Algolia
 const client = algoliasearch(functions.config().algolia.id, functions.config().algolia.key)
 
-const search = client.initIndex('users')
+const usersSearchIndex = process.env.FUNCTIONS_EMULATOR ? 'dev_users' : 'users'
+const search = client.initIndex(usersSearchIndex)
 
 const yelp = {
   id: functions.config().yelp.client_id,
@@ -349,29 +350,34 @@ export const onFileUpload = functions.storage
   .bucket()
   .object()
   .onFinalize(async object => {
-    const { contentType, name } = object
+    console.log(object, process.env)
 
-    console.log(object)
-
-    if (!contentType?.startsWith('image/')) {
+    if (!object.contentType?.startsWith('image/')) {
       return functions.logger.log('This is not an image.')
     }
 
-    if (!name?.endsWith('profilePhoto')) {
+    if (!object.name?.endsWith('profilePhoto')) {
       return functions.logger.log('This is not valid file name.')
     }
 
-    if (process.env.FUNCTIONS_EMULATOR) {
-      const [pathExists] = await storage.bucket().file(name!).exists()
-      if (!pathExists) {
-        return functions.logger.log('File not found in storage.')
+    if (object.name) {
+      const file = storage.bucket().file(object.name)
+      if (process.env.FUNCTIONS_EMULATOR) {
+        const [fileExists] = await file.exists()
+        if (!fileExists) {
+          return functions.logger.log('File not found in storage.')
+        }
       }
-    }
 
-    const uid = object.name!.split('/')[1]
-    await users.doc(uid).update({
-      photoURL: object.mediaLink,
-    })
+      await file.makePublic()
+      let photoURL = file.publicUrl()
+      if ((process.env.FIREBASE_STORAGE_EMULATOR_HOST || '').startsWith('0.0.0.0')) {
+        photoURL = photoURL.replace('0.0.0.0', '192.168.0.196')
+      }
+
+      const uid = object.name.split('/')[1]
+      await users.doc(uid).update({ photoURL })
+    }
   })
 
 /* ON FILE DELETE */

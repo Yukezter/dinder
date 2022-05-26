@@ -77,6 +77,7 @@ import DislikeIcon from '../../common/icons/Dislike'
 import SuperLikeIcon from '../../common/icons/SuperLike'
 import LikeIcon from '../../common/icons/Like'
 import FavoriteIcon from '../../common/icons/Favorite'
+import { ReactComponent as FavIcon } from '../../assets/icons/favorite_icon.svg'
 
 const PartyOptionsPopper = ({
   party,
@@ -177,7 +178,7 @@ const Members: React.FC<MembersProps> = props => {
     <Stack
       direction='row'
       spacing={1}
-      mb={2}
+      mb={{ xs: 1, md: 2 }}
       sx={{
         height: 60,
         overflowY: 'hidden',
@@ -235,9 +236,13 @@ const SwipeButton: React.FC<SwipeButtonProps> = ({
         theme => ({
           p: 0,
           boxShadow: theme.shadows[3],
-          height: width,
-          width: width,
+          height: width * 0.8,
+          width: width * 0.8,
           color: 'white',
+          [theme.breakpoints.up('md')]: {
+            height: width,
+            width: width,
+          },
         }),
         ...(Array.isArray(sx) ? sx : [sx]),
       ]}
@@ -256,44 +261,70 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
   const { match, ...dialogProps } = props
 
   return (
-    <Dialog {...dialogProps}>
-      <Card sx={{ width: 345, p: 1 }}>
-        <Typography variant='h5' component='div' align='center' py={2}>
-          {match?.type === 'like' && "It's a match!"}
-          {match?.type === 'super-like' && "It's a super match!"}
-        </Typography>
-        <CardMedia
-          component='img'
-          height={200}
-          image={match?.details.image}
-          alt={match?.details.name}
-        />
-        <CardContent>
-          <Grid container>
-            <Grid item xs>
-              <Typography variant='h6' component='div'>
-                {match?.details.name}
+    <Dialog
+      {...dialogProps}
+      PaperProps={{
+        sx: { width: '100%', maxWidth: 360, p: 2, m: 3 },
+      }}
+    >
+      <Typography
+        variant='h6'
+        component='div'
+        color='primary'
+        py={1}
+        align='center'
+        fontWeight={700}
+        sx={{ textTransform: 'uppercase' }}
+      >
+        {match?.type === 'like' && "Ya'll matched!"}
+        {match?.type === 'super-like' && "Ya'll super matched!"}
+      </Typography>
+      <CardMedia
+        component='img'
+        height={250}
+        width={250}
+        sx={{ mb: 2 }}
+        image={match?.details.image}
+        alt={match?.details.name}
+      />
+      <Grid container>
+        <Grid item xs={12}>
+          <Box display='flex' alignItems='center' mb={{ sm: 1 }}>
+            <Box display='flex' alignItems='center' mr='auto'>
+              <Stars rating={match?.details.rating} />
+              <Typography lineHeight={1} variant='caption' ml={0.5}>
+                {match?.details.reviews} Reviews
               </Typography>
-              <Typography variant='body2' component='div' gutterBottom>
-                {match?.details.location}
-              </Typography>
-            </Grid>
-            <Grid item xs='auto'>
-              <Box
-                mt={1}
-                display='flex'
-                flexDirection='column'
-                alignItems='flex-end'
-              >
-                <Stars rating={match?.details.rating} />
-                <Typography variant='caption' mt={0.5} mb={0.5}>
-                  {match?.details.reviews} Reviews
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+            </Box>
+            <Chip
+              label={match?.details.price}
+              size='small'
+              color='primary'
+              variant='filled'
+              sx={{ px: 1, mr: 1 }}
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={12}>
+          <Typography variant='body2' fontWeight={600}>
+            {match?.details.name}
+          </Typography>
+          <Box display='flex' alignItems='center'>
+            <Typography variant='body2' display='inline'>
+              {match?.details.location}
+            </Typography>
+            <Typography
+              variant='caption'
+              color='primary'
+              mr={1}
+              ml='auto'
+              sx={{ textDecoration: 'underline' }}
+            >
+              {match?.details.categories}
+            </Typography>
+          </Box>
+        </Grid>
+      </Grid>
     </Dialog>
   )
 }
@@ -431,8 +462,8 @@ const MatchListItem: React.FC<MatchListItemProps> = props => {
             onClick={handleToggleSaveBusiness}
             disabled={businesses.isLoading}
             sx={{
-              height: 24,
-              width: 24,
+              height: '24px !important',
+              width: '24px !important',
               mr: 2,
               '& svg': {
                 color: state === 'save' ? 'black' : 'white',
@@ -525,7 +556,10 @@ const Matches: React.FC<MatchesProps> = ({ partyId, closeMatches }) => {
       }
     )
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      initialCall.current = true
+    }
   }, [partyId, user.uid, queryClient])
 
   React.useEffect(() => {
@@ -609,7 +643,7 @@ const Motion = motion(
       return (
         <div
           ref={ref}
-          style={{ position: 'absolute', inset: 0 }}
+          style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
           children={props.children}
         />
       )
@@ -655,12 +689,18 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
       })}
     >
       <Box p={2}>
-        <OpenInNewLink href={business.url} ml='auto' fontSize={24} />
+        <OpenInNewLink
+          href={business.url}
+          ml='auto'
+          height={{ xs: 28, md: 40 }}
+          width={{ xs: 28, md: 40 }}
+          fontSize={{ xs: 'small', md: 'large' }}
+        />
       </Box>
       <Box p={1} sx={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}>
         <Grid container>
           <Grid item xs={12}>
-            <Box display='flex' alignItems='center' mb={1}>
+            <Box display='flex' alignItems='center' mb={{ sm: 1 }}>
               <Box display='flex' alignItems='center' mr='auto'>
                 <Stars rating={business.rating} />
                 <Typography lineHeight={1} variant='caption' ml={0.5}>
@@ -680,25 +720,32 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
             <Typography variant='body2' fontWeight={600}>
               {business.name}
             </Typography>
-            <Typography variant='body2'>
-              {business.location.city},{' '}
-              {business.location.state || business.location.country}
-            </Typography>
-          </Grid>
-          <Grid xs={12}>
-            <Typography
-              variant='caption'
-              color='primary'
-              sx={{ textDecoration: 'underline' }}
-            >
-              {business.categories.map(({ title }) => title).join(', ')}
-            </Typography>
+            <Box display='flex' alignItems='center'>
+              <Typography variant='body2' display='inline'>
+                {business.location.city},{' '}
+                {business.location.state || business.location.country}
+              </Typography>
+              <Typography
+                variant='caption'
+                color='primary'
+                mr={1}
+                ml='auto'
+                sx={{ textDecoration: 'underline' }}
+              >
+                {business.categories
+                  .slice(0, 2)
+                  .map(({ title }) => title)
+                  .join(', ')}
+              </Typography>
+            </Box>
           </Grid>
         </Grid>
       </Box>
     </Paper>
   </Motion>
 )
+
+const actionButtonsHeight = 80
 
 type ActionButtonsProps = {
   isLoading: boolean
@@ -768,7 +815,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
 
   return (
     <Stack
-      height={100}
+      height={{ xs: actionButtonsHeight, md: actionButtonsHeight + 20 }}
       direction='row'
       spacing={2}
       justifyContent='center'
@@ -776,7 +823,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
       position='absolute'
       left={0}
       right={0}
-      bottom={-134}
+      bottom={{ xs: -actionButtonsHeight, md: -(actionButtonsHeight + 20) }}
     >
       <SwipeButton
         Icon={BlockIcon}
@@ -808,6 +855,28 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
         disabled={isDisabled}
         sx={{ color: state === 'save' ? 'black' : 'white' }}
       />
+      {/* <IconButton
+        onClick={handleToggleSaveBusiness}
+        disabled={isDisabled}
+        sx={theme => ({
+          p: 0,
+          boxShadow: theme.shadows[3],
+          height: 40 * 0.8,
+          width: 40 * 0.8,
+          '& svg': {
+            color: state === 'save' ? 'black' : 'white',
+          },
+          '& svg circle': {
+            fill: 'currentColor',
+          },
+          [theme.breakpoints.up('md')]: {
+            height: 40,
+            width: 40,
+          },
+        })}
+      >
+        <FavIcon />
+      </IconButton> */}
     </Stack>
   )
 })
@@ -865,6 +934,7 @@ const useGetYelpBusinesses = (
     },
     {
       cacheTime: 24 * 60 * 60 * 1000,
+      staleTime: Infinity,
       select(data) {
         return {
           pageParams: data.pageParams,
@@ -1069,10 +1139,10 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   const onDragEnd = React.useCallback(
     (info: PanInfo) => {
       if (dragStart.axis === 'x') {
-        if (info.offset.x >= 100) animateCardSwipe('like')
-        else if (info.offset.x <= -100) animateCardSwipe('dislike')
+        if (info.offset.x >= 220) animateCardSwipe('like')
+        else if (info.offset.x <= -220) animateCardSwipe('dislike')
       } else {
-        if (info.offset.y <= -100) animateCardSwipe('super-like')
+        if (info.offset.y <= -220) animateCardSwipe('super-like')
       }
     },
     [dragStart, animateCardSwipe]
@@ -1084,7 +1154,11 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         <BusinessCard
           key={business.id ? `${business.id}-${index}` : index}
           business={business}
-          style={{ x, y, zIndex: index, touchAction: 'none' }}
+          style={{
+            x,
+            y,
+            zIndex: index,
+          }}
           onDirectionLock={axis => onDirectionLock(axis)}
           onDragEnd={(e, info) => onDragEnd(info)}
           animate={dragStart.animation}
@@ -1104,9 +1178,10 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   }
 
   return (
-    <div style={{ height: '100%', position: 'relative' }}>
+    <>
       <Box
-        height='100%'
+        flex={1}
+        minHeight={{ xs: 200, sm: 300 }}
         maxHeight={600}
         position='relative'
         display='flex'
@@ -1134,7 +1209,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         currentYelpBusiness={cards[cards.length - 1]}
         animateCardSwipe={animateCardSwipe}
       />
-    </div>
+    </>
   )
 }
 
@@ -1181,16 +1256,17 @@ const PartyActionsArea: React.FC<PartyActionsAreaProps> = props => {
   )
 
   return (
-    <>
+    <Box display='flex' flexDirection='column' flex={1} minHeight={0}>
       <Paper
         sx={{
-          p: 3,
-          height: 'calc(100% - 100px)',
+          p: { xs: 2, md: 3 },
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
+          position: 'relative',
         }}
       >
-        <Box display='flex' justifyContent='space-between'>
+        <Box display='flex' justifyContent='space-between' alignItems='center'>
           <Typography variant='h6'>{party.name}</Typography>
           <PartyOptionsPopper
             party={party}
@@ -1202,13 +1278,8 @@ const PartyActionsArea: React.FC<PartyActionsAreaProps> = props => {
         <Members members={party.members} />
         <InfiniteCards party={party} />
       </Paper>
-      <Box
-        height={100}
-        display='flex'
-        justifyContent='center'
-        alignItems='center'
-      ></Box>
-    </>
+      <Box height={{ xs: actionButtonsHeight, md: actionButtonsHeight + 20 }} />
+    </Box>
   )
 }
 
@@ -1254,59 +1325,53 @@ const PartyView = () => {
   }
 
   return (
-    <Grid container columnSpacing={4} height='100%'>
-      <Grid item xs={12} lg={8} height='100%'>
-        <Box height='100%'>
+    <Box display='flex' flex='1 1 1px' minHeight={0}>
+      <Grid container columnSpacing={{ lg: 4 }}>
+        <Grid item xs={12} lg={8} display='flex'>
           <PartyActionsArea
             party={party}
             setParty={setParty}
             openMatches={openMatches}
           />
-        </Box>
-      </Grid>
-      <Grid item lg height={{ lg: '100%' }}>
-        <Drawer
-          open={isMatchesOpen}
-          onClose={closeMatches}
-          variant={matches ? 'permanent' : 'temporary'}
-          anchor='right'
-          ModalProps={{
-            disablePortal: true,
-            keepMounted: true,
-          }}
-          sx={{
-            maxWidth: { sm: 400 },
-            width: { xs: '100%', sm: 'auto' },
-            '& .MuiDrawer-paper': {
+        </Grid>
+        <Grid item lg height={{ lg: '100%' }}>
+          <Drawer
+            open={isMatchesOpen}
+            onClose={closeMatches}
+            variant={matches ? 'permanent' : 'temporary'}
+            anchor='right'
+            ModalProps={{
+              disablePortal: true,
+              keepMounted: true,
+            }}
+            sx={{
               maxWidth: { sm: 400 },
               width: { xs: '100%', sm: 'auto' },
-            },
-            height: {
-              lg: '100%',
-            },
-            p: {
-              lg: 1,
-            },
-            m: {
-              lg: -1,
-            },
-          }}
-          PaperProps={{
-            elevation: 1,
-            sx: {
-              p: 3,
-              overflowY: 'hidden',
-              position: {
-                xs: 'fixed',
-                lg: 'static',
+              '& .MuiDrawer-paper': {
+                maxWidth: { sm: 400 },
+                width: { xs: '100%', sm: 'auto' },
               },
-            },
-          }}
-        >
-          <Matches partyId={partyId} closeMatches={closeMatches} />
-        </Drawer>
+              height: {
+                lg: '100%',
+              },
+            }}
+            PaperProps={{
+              elevation: 1,
+              sx: {
+                p: { xs: 2, md: 3 },
+                overflowY: 'hidden',
+                position: {
+                  xs: 'fixed',
+                  lg: 'static',
+                },
+              },
+            }}
+          >
+            <Matches partyId={partyId} closeMatches={closeMatches} />
+          </Drawer>
+        </Grid>
       </Grid>
-    </Grid>
+    </Box>
   )
 }
 

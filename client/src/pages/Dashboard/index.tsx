@@ -171,7 +171,7 @@ const ListItemUser: React.FC<ListItemUserProps> = props => {
             isLoading ? (
               <Skeleton width='50%' />
             ) : (
-              `@${secondary || user?.username}`
+              <>@{secondary || user?.username}</>
             )
           }
         />
@@ -340,6 +340,8 @@ const ContactsMenu: React.FC = props => {
   const { viewProfile } = useProfile()
   const { autocomplete, autocompleteState } = useSearch(viewProfile)
   const { data, isPlaceholderData } = useGetContacts({
+    cacheTime: 60 * 60 * 1000,
+    staleTime: Infinity,
     placeholderData: Array.from(Array(5)).fill(undefined),
   })
 
@@ -417,7 +419,7 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
         >
           <Hidden mdUp>
             <IconButton
-              sx={{ position: 'absolute', left: 20, top: 12 }}
+              sx={{ position: 'absolute', left: 20, top: 12, color: 'white' }}
               onClick={closeContacts}
             >
               <ArrowBackIcon />
@@ -438,7 +440,6 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
             right: 0,
             height: '100%',
             width: '1px',
-            // background: '1px solid rgba(0, 0, 0, 0.12)',
             borderRight: '1px solid rgba(0, 0, 0, 0.12)',
           },
         }}
@@ -474,7 +475,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
   }
 
   return (
-    // <Container maxWidth='lg' disableGutters>
     <Header
       position='fixed'
       elevation={0}
@@ -492,7 +492,18 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
           </IconButton>
         </Hidden>
         <Hidden mdUp>
-          <BrandName to='/dashboard' fontSize={20} py={2} />
+          <BrandName
+            to='/dashboard'
+            fontSize={20}
+            position='absolute'
+            top={0}
+            bottom={0}
+            left='50%'
+            sx={{ transform: 'translateX(-50%)' }}
+            display='flex'
+            justifyContent='center'
+            alignItems='center'
+          />
         </Hidden>
         <IconButton sx={{ ml: 'auto' }}>
           <NotificationsIcon />
@@ -557,7 +568,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
         </Popper>
       </Toolbar>
     </Header>
-    // </Container>
   )
 }
 
@@ -565,20 +575,15 @@ const DashboardWindow: React.FC = props => {
   return (
     <Box
       id='dashboard-window'
-      height='100vh'
+      minHeight='100%'
       width={{
         xs: '100%',
         md: `calc(100% - ${drawerWidth}px)`,
       }}
       ml='auto'
-      px={3}
       position='relative'
       display='flex'
       flexDirection='column'
-      sx={{
-        overflowX: 'hidden',
-        overflowY: 'auto',
-      }}
       children={props.children}
     />
   )
@@ -595,15 +600,15 @@ const DashboardLayout: React.FC = props => {
         <Container
           component='main'
           maxWidth='lg'
-          sx={{
+          sx={theme => ({
             position: 'relative',
-            height: '100%',
-            px: { xs: 0, sm: 2 },
-            mb: { xs: 2, lg: 5 },
+            minHeight: '100%',
+            pb: { xs: 2, lg: 3 },
+            px: { xs: 3, sm: 5 },
             display: 'flex',
             flexDirection: 'column',
-            flex: 1,
-          }}
+            flexShrink: 0,
+          })}
         >
           <Toolbar sx={{ mb: 4 }} />
           {props.children}

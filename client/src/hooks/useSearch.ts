@@ -50,6 +50,7 @@ export type Autocomplete = AutocompleteApi<
 }
 
 const searchClient = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_SEARCH_KEY)
+const indexName = process.env.NODE_ENV === 'development' ? 'dev_users' : 'users'
 
 const useSearch = (viewProfile: (userProfile?: User | undefined) => void) => {
   // const navigate = useNavigate()
@@ -115,7 +116,7 @@ const useSearch = (viewProfile: (userProfile?: User | undefined) => void) => {
                   searchClient,
                   queries: [
                     {
-                      indexName: 'users',
+                      indexName,
                       query,
                       params: {
                         hitsPerPage: 6,
