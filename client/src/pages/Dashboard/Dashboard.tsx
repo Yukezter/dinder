@@ -656,7 +656,7 @@ const Dashboard = () => {
           </Grid>
           {parties.cards.map((party, index) => (
             <Grid key={!party ? index : party.id} item xs={6} lg={3}>
-              <PartyCard index={index} />
+              <PartyCard party={party} index={index} />
             </Grid>
           ))}
         </Grid>
