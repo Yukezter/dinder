@@ -96,7 +96,7 @@ const useSearch = (viewProfile: (userProfile?: User | undefined) => void) => {
         plugins: [recentSearchesPlugin],
         placeholder: 'Find contacts!',
         stallThreshold: 1000,
-        debug: true,
+        debug: process.env.NODE_ENV === 'development',
         onStateChange(stateChangeProps) {
           const { state } = stateChangeProps
           setAutocompleteState({

@@ -67,9 +67,8 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
           </Typography>
         </div>
         <Avatar
-          id={userProfile?.uid}
           src={userProfile?.photoURL}
-          sx={{ m: 2, width: 120, height: 120 }}
+          sx={{ m: 2, width: 200, height: 200 }}
         />
       </Stack>
       {userProfile.about && (

@@ -4,11 +4,13 @@ import { doc, Timestamp } from 'firebase/firestore'
 import { useMutation, useQueryClient, UseMutationOptions } from 'react-query'
 import Drawer from '@mui/material/Drawer'
 import Stack from '@mui/material/Stack'
+import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import CloseIcon from '@mui/icons-material/Close'
 
 import { PartiesService } from '../../services/parties'
 import { useUser, User, PopulatedParty } from '../FirestoreContext'
-import { Button, TextField } from '../../common/components'
+import { Button, TextField, IconButton } from '../../common/components'
 import ContactSelect from './ContactSelect'
 import GooglePlaces from './GooglePlaces'
 import DistanceSlider from './DistanceSlider'
@@ -27,6 +29,7 @@ const useUpdateParty = () => {
       return data
     },
     {
+      mutationKey: 'updateParty',
       async onSuccess(newParty) {
         queryClient.setQueryData<PopulatedParty[]>(
           'parties',
@@ -235,10 +238,19 @@ export const PartySettingsProvider: React.FC = props => {
         variant='temporary'
         SlideProps={{ onExited: () => resetState() }}
       >
-        <Stack width={{ xs: 320, md: 400 }} p={4} spacing={3}>
-          <Typography variant='h6'>
-            {!state?.party.id ? 'Create a party!' : state.party.name}
-          </Typography>
+        <Stack width={{ sm: 400 }} p={4} spacing={3}>
+          <Box
+            display='flex'
+            justifyContent='space-between'
+            alignItems='center'
+          >
+            <Typography variant='h6'>
+              {!state?.party.id ? 'Create a party!' : state.party.name}
+            </Typography>
+            <IconButton onClick={onClose}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
           <Stack spacing={2}>
             <TextField
               fullWidth

@@ -77,7 +77,6 @@ import DislikeIcon from '../../common/icons/Dislike'
 import SuperLikeIcon from '../../common/icons/SuperLike'
 import LikeIcon from '../../common/icons/Like'
 import FavoriteIcon from '../../common/icons/Favorite'
-import { ReactComponent as FavIcon } from '../../assets/icons/favorite_icon.svg'
 
 const PartyOptionsPopper = ({
   party,
@@ -637,21 +636,6 @@ const Matches: React.FC<MatchesProps> = ({ partyId, closeMatches }) => {
   )
 }
 
-const Motion = motion(
-  React.forwardRef<HTMLDivElement, React.PropsWithChildren<MotionProps>>(
-    (props, ref) => {
-      return (
-        <div
-          ref={ref}
-          style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-          children={props.children}
-        />
-      )
-    }
-  ),
-  { forwardMotionProps: true }
-)
-
 type BusinessCardProps = MotionProps & {
   business: YelpBusiness
 }
@@ -660,11 +644,11 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
   business,
   style,
   onDirectionLock,
-  onDragStart,
   onDragEnd,
   animate,
 }) => (
-  <Motion
+  <motion.div
+    className='card'
     drag
     dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
     dragDirectionLock
@@ -685,7 +669,6 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        userSelect: 'none',
       })}
     >
       <Box p={2}>
@@ -742,7 +725,7 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
         </Grid>
       </Box>
     </Paper>
-  </Motion>
+  </motion.div>
 )
 
 const actionButtonsHeight = 80
@@ -855,28 +838,6 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
         disabled={isDisabled}
         sx={{ color: state === 'save' ? 'black' : 'white' }}
       />
-      {/* <IconButton
-        onClick={handleToggleSaveBusiness}
-        disabled={isDisabled}
-        sx={theme => ({
-          p: 0,
-          boxShadow: theme.shadows[3],
-          height: 40 * 0.8,
-          width: 40 * 0.8,
-          '& svg': {
-            color: state === 'save' ? 'black' : 'white',
-          },
-          '& svg circle': {
-            fill: 'currentColor',
-          },
-          [theme.breakpoints.up('md')]: {
-            height: 40,
-            width: 40,
-          },
-        })}
-      >
-        <FavIcon />
-      </IconButton> */}
     </Stack>
   )
 })
@@ -1085,88 +1046,76 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
 
   const x = useMotionValue(0)
   const y = useMotionValue(0)
-
   const scale = useTransform(
     dragStart.axis === 'x' ? x : y,
     [-800, 0, 800],
     [1, 0.5, 1]
   )
-
   const shadowBlur = useTransform(
     dragStart.axis === 'x' ? x : y,
     [-800, 0, 800],
     [0, 25, 0]
   )
-
   const shadowOpacity = useTransform(
     dragStart.axis === 'x' ? x : y,
     [-800, 0, 800],
     [0, 0.2, 0]
   )
-
   const boxShadow = useMotionTemplate`0 ${shadowBlur}px 25px -5px rgba(0, 0, 0, ${shadowOpacity})`
 
-  const onDirectionLock = React.useCallback(
-    (axis: 'x' | 'y' | null) => setDragStart({ ...dragStart, axis }),
-    [dragStart, setDragStart]
-  )
+  const onDirectionLock = (axis: 'x' | 'y' | null) =>
+    setDragStart({ ...dragStart, axis })
 
-  const animateCardSwipe = React.useCallback(
-    (action: SwipeAction) => {
-      handleSwipe(action, cards[cards.length - 1])
+  const animateCardSwipe = (action: SwipeAction) => {
+    handleSwipe(action, cards[cards.length - 1])
 
-      if (action === 'like') {
-        setDragStart({ ...dragStart, animation: { x: 800, y: 0 } })
-      } else if (action === 'dislike') {
-        setDragStart({ ...dragStart, animation: { x: -800, y: 0 } })
-      } else if (action === 'super-like') {
-        setDragStart({ ...dragStart, animation: { x: 0, y: -800 } })
+    if (action === 'like') {
+      setDragStart({ ...dragStart, animation: { x: 800, y: 0 } })
+    } else if (action === 'dislike') {
+      setDragStart({ ...dragStart, animation: { x: -800, y: 0 } })
+    } else if (action === 'super-like') {
+      setDragStart({ ...dragStart, animation: { x: 0, y: -800 } })
+    }
+
+    setTimeout(() => {
+      setDragStart({ axis: null, animation: { x: 0, y: 0 } })
+      x.set(0)
+      y.set(0)
+      setCards([...allCards.slice(0, 1), ...cards.slice(0, cards.length - 1)])
+      setAllCards(allCards.slice(1))
+    }, 200)
+  }
+
+  const onDragEnd = (info: PanInfo) => {
+    if (dragStart.axis === 'x') {
+      console.log(dragStart)
+      if (info.offset.x >= 150) {
+        animateCardSwipe('like')
+      } else if (info.offset.x <= -150) {
+        animateCardSwipe('dislike')
       }
-
-      setTimeout(() => {
-        setDragStart({ axis: null, animation: { x: 0, y: 0 } })
-
-        x.set(0)
-        y.set(0)
-
-        setCards([...allCards.slice(0, 1), ...cards.slice(0, cards.length - 1)])
-        setAllCards(allCards.slice(1))
-      }, 200)
-    },
-    [handleSwipe, dragStart, x, y, allCards, cards]
-  )
-
-  const onDragEnd = React.useCallback(
-    (info: PanInfo) => {
-      if (dragStart.axis === 'x') {
-        if (info.offset.x >= 220) animateCardSwipe('like')
-        else if (info.offset.x <= -220) animateCardSwipe('dislike')
-      } else {
-        if (info.offset.y <= -220) animateCardSwipe('super-like')
+    } else {
+      if (info.offset.y <= -150) {
+        animateCardSwipe('super-like')
       }
-    },
-    [dragStart, animateCardSwipe]
-  )
+    }
+  }
 
   const renderCards = () => {
     return cards.map((business, index) =>
       index === cards.length - 1 ? (
         <BusinessCard
-          key={business.id ? `${business.id}-${index}` : index}
           business={business}
-          style={{
-            x,
-            y,
-            zIndex: index,
-          }}
+          key={index}
+          style={{ x, y, zIndex: index }}
           onDirectionLock={axis => onDirectionLock(axis)}
           onDragEnd={(e, info) => onDragEnd(info)}
           animate={dragStart.animation}
         />
       ) : (
         <BusinessCard
-          key={business.id ? `${business.id}-${index}` : index}
           business={business}
+          key={index}
           style={{
             scale,
             boxShadow,
@@ -1188,6 +1137,15 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         justifyContent='center'
         alignItems='center'
         overflow='hidden'
+        sx={{
+          '& .card': {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          },
+        }}
       >
         {initialOffset.isLoading || yelpBusinesses.isLoading ? (
           <Skeleton variant='rectangular' width='100%' height='100%' />
@@ -1204,7 +1162,7 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
         )}
       </Box>
       <ActionButtons
-        isLoading={yelpBusinesses.isLoading}
+        isLoading={initialOffset.isLoading || yelpBusinesses.isLoading}
         businesses={businesses}
         currentYelpBusiness={cards[cards.length - 1]}
         animateCardSwipe={animateCardSwipe}

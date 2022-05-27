@@ -6,7 +6,6 @@ import {
   Outlet,
 } from 'react-router-dom'
 import GlobalStyles from '@mui/material/GlobalStyles'
-import Box from '@mui/material/Box'
 import Zoom from '@mui/material/Zoom'
 import { TransitionProps } from '@mui/material/transitions'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -74,7 +73,7 @@ const Routes = () => {
         <>
           <GlobalStyles
             styles={{
-              body: { background: '#FFF8EF' },
+              body: { background: '#fafafa' },
             }}
           />
           <ProtectedRoute />
@@ -113,13 +112,13 @@ const Routes = () => {
         },
         {
           path: '*',
-          element: 'No match bro!',
+          element: 'Page not found.',
         },
       ],
     },
     {
       path: '*',
-      element: 'No Match',
+      element: 'Page not found.',
     },
   ]
 

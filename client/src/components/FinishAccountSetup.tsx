@@ -75,55 +75,57 @@ const FinishAccountSetup = () => {
   const isDisabled = mutation.isLoading || mutation.isSuccess
 
   return (
-    <Paper sx={{ maxWidth: 350, p: 3, m: 'auto' }}>
-      <Typography variant='h6' mb={3}>
-        Pick a name and username!
-      </Typography>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <TextField
-          {...form.register('name', {
-            required: 'A name is required',
-          })}
-          disabled={isDisabled}
-          id='name'
-          label='Name'
-          fullWidth
-          helperText='Enter your full name'
-        />
-        <TextField
-          {...form.register('username', {
-            required: 'A username is required',
-            onChange: onUsernameChange,
-          })}
-          disabled={isDisabled}
-          id='username'
-          label='Username'
-          fullWidth
-          helperText={state.helperText}
-          FormHelperTextProps={{
-            sx: theme => ({
-              ...(state.exists !== undefined && {
-                color: state.exists
-                  ? theme.palette.error.main
-                  : theme.palette.success.main,
+    <Box m='auto' p={3}>
+      <Paper sx={{ maxWidth: 350, p: 3 }}>
+        <Typography variant='h6' mb={3}>
+          Pick a name and username!
+        </Typography>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <TextField
+            {...form.register('name', {
+              required: 'A name is required',
+            })}
+            disabled={isDisabled}
+            id='name'
+            label='Name'
+            fullWidth
+            helperText='Enter your full name'
+          />
+          <TextField
+            {...form.register('username', {
+              required: 'A username is required',
+              onChange: onUsernameChange,
+            })}
+            disabled={isDisabled}
+            id='username'
+            label='Username'
+            fullWidth
+            helperText={state.helperText}
+            FormHelperTextProps={{
+              sx: theme => ({
+                ...(state.exists !== undefined && {
+                  color: state.exists
+                    ? theme.palette.error.main
+                    : theme.palette.success.main,
+                }),
               }),
-            }),
-          }}
-        />
-        <Button
-          type='submit'
-          fullWidth
-          loading={isDisabled}
-          disabled={
-            !form.formState.isValid ||
-            state.exists ||
-            state.exists === undefined
-          }
-        >
-          Submit
-        </Button>
-      </form>
-    </Paper>
+            }}
+          />
+          <Button
+            type='submit'
+            fullWidth
+            loading={isDisabled}
+            disabled={
+              !form.formState.isValid ||
+              state.exists ||
+              state.exists === undefined
+            }
+          >
+            Submit
+          </Button>
+        </form>
+      </Paper>
+    </Box>
   )
 }
 

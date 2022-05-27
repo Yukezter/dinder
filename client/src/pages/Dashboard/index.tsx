@@ -1,7 +1,7 @@
 import React from 'react'
 import { To, useNavigate } from 'react-router-dom'
-import { useIsMutating } from 'react-query'
-import { useTheme } from '@mui/material/styles'
+import { useIsMutating, useQueryClient, MutationObserver } from 'react-query'
+import { Theme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
 import Box from '@mui/material/Box'
@@ -391,13 +391,33 @@ type ResponsiveDrawerProps = {
 const drawerWidth = 300
 
 const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
-  const theme = useTheme()
-  const matches = useMediaQuery(theme.breakpoints.up('md'))
-
+  const matches = useMediaQuery((theme: Theme) => theme.breakpoints.up('md'))
   const { open, setOpen } = props
   const closeContacts = () => {
     setOpen(false)
   }
+
+  // const queryClient = useQueryClient()
+
+  // React.useEffect(() => {
+  //   const observer = new MutationObserver(queryClient, {
+  //     mutationKey: 'updateParty',
+  //     onMutate() {
+  //       console.log('wtf!!!')
+  //     },
+  //     onSuccess() {
+  //       setOpen(false)
+  //     },
+  //   })
+
+  //   const unsubscribe = observer.subscribe(() => {
+  //     console.log('fired!!!')
+  //   })
+
+  //   return () => {
+  //     unsubscribe()
+  //   }
+  // }, [queryClient, setOpen])
 
   return (
     <Drawer
@@ -603,14 +623,14 @@ const DashboardLayout: React.FC = props => {
           sx={theme => ({
             position: 'relative',
             minHeight: '100%',
-            pb: { xs: 2, lg: 3 },
+            pb: { xs: 4, lg: 4 },
             px: { xs: 3, sm: 5 },
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
           })}
         >
-          <Toolbar sx={{ mb: 4 }} />
+          <Toolbar sx={{ mb: 3 }} />
           {props.children}
         </Container>
       </DashboardWindow>

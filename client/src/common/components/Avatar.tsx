@@ -52,25 +52,6 @@ interface CustomAvatarProps extends AvatarProps {
   size?: 'small' | 'medium' | 'large' | number
 }
 
-// const CustomAvatar = React.forwardRef<HTMLInputElement, CustomAvatarProps>(
-//   ({ size = 'medium', style, ...props }, ref) => (
-//     <Avatar
-//       ref={ref}
-//       style={{
-//         ...getSize(size),
-//         ...style,
-//       }}
-//       //   sx={[
-//       //     theme => ({
-//       //       background: theme => theme.palette.primary.main
-//       //     }),
-//       //   ...(Array.isArray(sx) ? sx : [sx])
-//       // ]}
-//       {...props}
-//     />
-//   )
-// )
-
 const CustomAvatar: React.FC<CustomAvatarProps> = ({
   size,
   style,
@@ -81,12 +62,6 @@ const CustomAvatar: React.FC<CustomAvatarProps> = ({
       ...getSize(size),
       ...style,
     }}
-    //   sx={[
-    //     theme => ({
-    //       background: theme => theme.palette.primary.main
-    //     }),
-    //   ...(Array.isArray(sx) ? sx : [sx])
-    // ]}
     {...props}
   />
 )
