@@ -488,7 +488,6 @@ const Matches: React.FC<MatchesProps> = ({ partyId, closeMatches }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const initialCall = React.useRef(true)
   const queryClient = useQueryClient()
-  // const businesses = useBusinesses()
   const matches = useQuery<MatchesByDate>(
     'matches',
     () => new Promise<MatchesByDate>(() => {}),
@@ -611,6 +610,7 @@ const Matches: React.FC<MatchesProps> = ({ partyId, closeMatches }) => {
         </Hidden>
       </Box>
       <Box
+        id='match-scrollbox'
         sx={{
           overflowY: isLoading ? 'hidden' : 'auto',
         }}
@@ -801,6 +801,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
       direction='row'
       spacing={2}
       justifyContent='center'
+      // alignItems='flex-end'
       alignItems='center'
       position='absolute'
       left={0}
@@ -1250,6 +1251,10 @@ const PartyView = () => {
   const [isMatchesOpen, setIsMatchesOpen] = React.useState(false)
 
   const openMatches = React.useCallback(() => {
+    const matchesScrollEl = document.getElementById('match-scrollbox')
+    if (matchesScrollEl) {
+      matchesScrollEl.scrollTo({ top: 0 })
+    }
     setIsMatchesOpen(true)
   }, [])
 

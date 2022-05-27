@@ -6,6 +6,7 @@ import { visuallyHidden } from '@mui/utils'
 import { Theme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import Box from '@mui/material/Box'
+import Hidden from '@mui/material/Hidden'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Grid from '@mui/material/Grid'
@@ -157,12 +158,17 @@ const CreatePartyCard: React.FC = () => {
   const { openSettings } = usePartySettings()
 
   return (
-    <Card sx={{ height: { xs: 165, sm: 180 }, borderRadius: 8 }}>
+    <Card
+      sx={{
+        height: '100%',
+        display: 'flex',
+        minHeight: 122,
+        borderRadius: 8,
+      }}
+    >
       <CardActionArea
         sx={{
-          fontSize: 'unset',
-          lineHeight: 'unset',
-          height: { xs: 165, sm: 180 },
+          flex: 1,
           borderRadius: 8,
           p: 2,
           display: 'flex',
@@ -220,8 +226,8 @@ const PartyCard: React.FC<PartyCardProps> = props => {
   return (
     <Card sx={{ height: '100%', borderRadius: 8 }}>
       <Box
+        minHeight={122}
         p={2}
-        mb={1}
         borderRadius={8}
         sx={{ backgroundColor: colors[index] }}
       >
@@ -271,18 +277,18 @@ const PartyCard: React.FC<PartyCardProps> = props => {
           users={party?.members}
         />
       </Box>
-      <Typography
-        variant='caption'
-        component='div'
-        noWrap
-        overflow='hidden'
-        textOverflow='ellipsis'
-        p={2}
-        pt={0}
-        // display={{ xs: 'none', md: 'block' }}
-      >
-        {!party ? <Skeleton width='60%' /> : party.location.description}
-      </Typography>
+      <Hidden smDown>
+        <Typography
+          variant='caption'
+          component='div'
+          noWrap
+          overflow='hidden'
+          textOverflow='ellipsis'
+          p={2}
+        >
+          {!party ? <Skeleton width='60%' /> : party.location.description}
+        </Typography>
+      </Hidden>
     </Card>
   )
 }
@@ -638,7 +644,13 @@ const Dashboard = () => {
   }, [isPlaceholderData])
 
   return (
-    <Box display='flex' flexDirection='column' flex={1} minHeight={{ lg: 0 }}>
+    <Box
+      display='flex'
+      flexDirection='column'
+      flex={1}
+      minHeight={{ lg: 0 }}
+      mb={{ xs: 2, lg: 0 }}
+    >
       <Typography variant='h6' pb={2}>
         {user.username && `Welcome back, @${user.username}!`}
       </Typography>
