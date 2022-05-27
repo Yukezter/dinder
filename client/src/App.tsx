@@ -58,17 +58,28 @@ const queryClient = new QueryClient({
 })
 
 const App = () => {
-  // React.useEffect(() => {
-  //   const setAppHeight = () => {
-  //     const el = document.documentElement
-  //     el.style.setProperty('--app-height', `${window.innerHeight}px`)
-  //   }
+  React.useEffect(() => {
+    const setViewportProperty = (el: HTMLElement) => {
+      let prevClientHeight: number
+      const handleResize = () => {
+        const clientHeight = window.innerHeight
+        if (clientHeight === prevClientHeight) return
+        requestAnimationFrame(() => {
+          el.style.setProperty('--app-height', `${window.innerHeight}px`)
+          prevClientHeight = clientHeight
+        })
+      }
+      handleResize()
+      return handleResize
+    }
 
-  //   window.addEventListener('orientationchange', setAppHeight)
-  //   // window.addEventListener('resize', setAppHeight)
+    const handleResize = setViewportProperty(document.documentElement)
+    window.addEventListener('resize', handleResize)
 
-  //   setAppHeight()
-  // }, [])
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   return (
     <ThemeProvider theme={theme}>
@@ -77,13 +88,11 @@ const App = () => {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <GlobalStyles
-              styles={
-                {
-                  // ':root': {
-                  //   '--app-height': '100%',
-                  // },
-                }
-              }
+              styles={{
+                ':root': {
+                  '--app-height': '100%',
+                },
+              }}
             />
             <Routes />
           </AuthProvider>

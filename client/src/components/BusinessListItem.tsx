@@ -93,7 +93,13 @@ const BusinessListItem: React.FC<BusinessListItemProps> = ({
                 )}
               </Typography>
             </Box>
-            <Typography variant='body1' component='div'>
+            <Typography
+              variant='body1'
+              component='div'
+              noWrap
+              overflow='hidden'
+              textOverflow='ellipsis'
+            >
               {isLoading || !details ? <Skeleton width='80%' /> : details.name}
             </Typography>
           </>

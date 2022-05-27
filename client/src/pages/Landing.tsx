@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useMutation } from 'react-query'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import GlobalStyles from '@mui/material/GlobalStyles'
-import { styled } from '@mui/material/styles'
+import styled from '@mui/material/styles/styled'
 import AppBar from '@mui/material/AppBar'
 import Toolbar from '@mui/material/Toolbar'
 import Box from '@mui/material/Box'
@@ -223,16 +223,15 @@ const AuthForm: React.FC = () => {
   )
 }
 
-const Root = styled(Box)(({ theme }) => ({
-  minHeight: '100%',
-  width: '100%',
-  // background: 'linear-gradient(#de59a9, #fa6715)',
-  position: 'relative',
-  overflowY: 'auto',
-  [theme.breakpoints.up('md')]: {
-    height: '100%',
-  },
-}))
+// const Root = styled(Box)(({ theme }) => ({
+//   minHeight: '100%',
+//   width: '100%',
+//   position: 'relative',
+//   overflowY: 'auto',
+//   [theme.breakpoints.up('md')]: {
+//     height: '100%',
+//   },
+// }))
 
 const Typewriter = () => {
   const [text, setText] = React.useState('')
@@ -310,8 +309,7 @@ const Landing = () => {
   }
 
   const scrollToBottom = () => {
-    // const scrollEl = document.scrollingElement || document.body
-    const scrollEl = document.getElementById('root')
+    const scrollEl = document.scrollingElement || document.body
     scrollEl?.scrollTo({ top: scrollEl?.scrollHeight, behavior: 'smooth' })
   }
 
@@ -320,13 +318,11 @@ const Landing = () => {
       <GlobalStyles
         styles={{
           body: {
-            '& > div#root': {
-              background: 'linear-gradient(#de59a9, #fa6715)',
-            },
+            background: 'linear-gradient(#de59a9, #fa6715)',
           },
         }}
       />
-      <Container sx={{ height: '100%', position: 'relative' }}>
+      <Container sx={{ minHeight: '100%', position: 'relative' }}>
         <AppBar position='absolute' color='transparent' elevation={0}>
           <Toolbar>
             <Typography
@@ -351,7 +347,7 @@ const Landing = () => {
             xs={12}
             md={6}
             container
-            height={{ xs: '100%', md: 'auto' }}
+            height={{ xs: 'var(--app-height, 100vh)', md: 'auto' }}
             position='relative'
           >
             <Box m='auto' mr={{ md: 'unset' }} color='white' display='inline'>
@@ -390,7 +386,7 @@ const Landing = () => {
             xs={12}
             md={6}
             container
-            height={{ xs: '100%', md: 'auto' }}
+            height={{ xs: 'var(--app-height, 100vh)', md: 'auto' }}
           >
             <Box m='auto'>
               <FormPaper>

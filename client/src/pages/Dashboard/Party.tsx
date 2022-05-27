@@ -267,11 +267,8 @@ const emojis = ['🥨', '🍞', '🥓', '🍔', '🍗', '🌭', '🍕', '🌮', 
 const Confetti = () => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const intervalID = React.useRef<NodeJS.Timer | number>()
-  const mounted = React.useRef<boolean>(true)
 
   React.useEffect(() => {
-    mounted.current = true
-
     if (canvasRef.current) {
       const jsConfetti = new JSConfetti({
         canvas: canvasRef.current,
@@ -279,14 +276,11 @@ const Confetti = () => {
 
       jsConfetti.addConfetti({ emojis })
       intervalID.current = setInterval(() => {
-        if (mounted.current) {
-          jsConfetti.addConfetti({ emojis })
-        }
+        jsConfetti.addConfetti({ emojis })
       }, 5000)
 
       return () => {
         clearInterval(intervalID.current as number)
-        mounted.current = false
       }
     }
   }, [])
@@ -309,16 +303,16 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
     >
       <Confetti />
       <Typography
-        variant='h6'
+        variant='h5'
         component='div'
         color='primary'
         py={1}
         align='center'
-        fontWeight={700}
+        fontWeight={800}
         sx={{ textTransform: 'uppercase' }}
       >
-        {match?.type === 'like' && "Ya'll matched!"}
-        {match?.type === 'super-like' && "Ya'll super matched!"}
+        {match?.type === 'like' && 'Match'}
+        {match?.type === 'super-like' && 'Super Match'}
       </Typography>
       <CardMedia
         component='img'
@@ -329,7 +323,7 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
       />
       <Grid container>
         <Grid item xs={12}>
-          <Box display='flex' alignItems='center' mb={{ sm: 1 }}>
+          <Box display='flex' alignItems='center' mb={{ xs: 0.5, sm: 1 }}>
             <Box display='flex' alignItems='center' mr='auto'>
               <Stars rating={match?.details.rating} />
               <Typography lineHeight={1} variant='caption' ml={0.5}>
@@ -423,7 +417,6 @@ const useToggleBusiness = (
   const debouncedMutate = React.useCallback(
     debounce((type: 'save' | 'block') => {
       const isDiff = optimisticSaveRef.current !== trueSaveRef.current
-      console.log('debounced!', businessRef.current, isDiff)
       if (businessRef.current && isDiff) {
         if (
           !trueSaveRef.current ||
@@ -666,7 +659,6 @@ const Matches: React.FC<MatchesProps> = ({ partyId, closeMatches }) => {
                   key={match ? `${match?.id}-${index}` : index}
                   isLoading={isLoading}
                   match={match}
-                  // businesses={businesses}
                 />
               ))}
             </List>
@@ -724,7 +716,7 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
       <Box p={1} sx={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}>
         <Grid container>
           <Grid item xs={12}>
-            <Box display='flex' alignItems='center' mb={{ sm: 1 }}>
+            <Box display='flex' alignItems='center' mb={{ xs: 0.5, sm: 1 }}>
               <Box display='flex' alignItems='center' mr='auto'>
                 <Stars rating={business.rating} />
                 <Typography lineHeight={1} variant='caption' ml={0.5}>
@@ -745,14 +737,13 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
               {business.name}
             </Typography>
             <Box display='flex' alignItems='center'>
-              <Typography variant='body2' display='inline'>
+              <Typography variant='body2' display='inline' mr={1}>
                 {business.location.city},{' '}
                 {business.location.state || business.location.country}
               </Typography>
               <Typography
                 variant='caption'
                 color='primary'
-                mr={1}
                 ml='auto'
                 sx={{ textDecoration: 'underline' }}
               >
@@ -808,7 +799,6 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
 
   const {
     state,
-    trueSave,
     setTrueSave,
     setOptimisticSave,
     addBusiness,
@@ -843,7 +833,6 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
       direction='row'
       spacing={2}
       justifyContent='center'
-      // alignItems='flex-end'
       alignItems='center'
       position='absolute'
       left={0}
@@ -854,7 +843,6 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
         Icon={BlockIcon}
         onClick={dislikeAndBlock}
         disabled={isDisabled}
-        sx={{ color: trueSave === 'block' ? 'black' : 'white' }}
       />
       <SwipeButton
         Icon={DislikeIcon}
@@ -1112,11 +1100,20 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
     handleSwipe(action, cards[cards.length - 1])
 
     if (action === 'like') {
-      setDragStart({ ...dragStart, animation: { x: 800, y: 0 } })
+      setDragStart({
+        axis: dragStart.axis || 'x',
+        animation: { x: 800, y: 0 },
+      })
     } else if (action === 'dislike') {
-      setDragStart({ ...dragStart, animation: { x: -800, y: 0 } })
+      setDragStart({
+        axis: dragStart.axis || 'x',
+        animation: { x: -800, y: 0 },
+      })
     } else if (action === 'super-like') {
-      setDragStart({ ...dragStart, animation: { x: 0, y: -800 } })
+      setDragStart({
+        axis: dragStart.axis || 'y',
+        animation: { x: 0, y: -800 },
+      })
     }
 
     setTimeout(() => {
@@ -1129,15 +1126,15 @@ const InfiniteCards: React.FC<InfiniteCardsProps> = ({ party }) => {
   }
 
   const onDragEnd = (info: PanInfo) => {
+    const threshold = Math.floor(window.innerWidth / 3)
     if (dragStart.axis === 'x') {
-      console.log(dragStart)
-      if (info.offset.x >= 150) {
+      if (info.offset.x >= threshold) {
         animateCardSwipe('like')
-      } else if (info.offset.x <= -150) {
+      } else if (info.offset.x <= -threshold) {
         animateCardSwipe('dislike')
       }
     } else {
-      if (info.offset.y <= -150) {
+      if (info.offset.y <= -threshold) {
         animateCardSwipe('super-like')
       }
     }
@@ -1338,7 +1335,7 @@ const PartyView = () => {
             openMatches={openMatches}
           />
         </Grid>
-        <Grid item lg height={{ lg: '100%' }}>
+        <Grid item lg={4} height={{ lg: '100%' }}>
           <Drawer
             open={isMatchesOpen}
             onClose={closeMatches}

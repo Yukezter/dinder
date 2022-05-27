@@ -133,17 +133,9 @@ const Routes = () => {
       <GlobalStyles
         styles={{
           body: {
-            display: 'flex',
-            position: 'fixed',
-            top: 0,
-            bottom: 0,
-            right: 0,
-            left: 0,
-            height: '100%',
             '& > div#root': {
-              width: '100%',
-              overflowY: 'auto',
               display: 'flex',
+              minHeight: 'var(--app-height, 100vh)',
             },
           },
         }}

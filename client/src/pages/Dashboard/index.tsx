@@ -588,7 +588,7 @@ const DashboardWindow: React.FC = props => {
   return (
     <Box
       id='dashboard-window'
-      minHeight='100%'
+      minHeight='var(--app-height)'
       width={{
         xs: '100%',
         md: `calc(100% - ${drawerWidth}px)`,
