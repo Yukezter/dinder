@@ -1,6 +1,6 @@
 import React from 'react'
-import { To, useNavigate } from 'react-router-dom'
-import { useIsMutating, useQueryClient, MutationObserver } from 'react-query'
+import { To, useNavigate, useLocation } from 'react-router-dom'
+import { useIsMutating } from 'react-query'
 import { Theme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
@@ -32,6 +32,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
 import { useUser, User } from '../../context/FirestoreContext'
 import { useProfile } from '../../context/ProfileViewContext'
+import { useContactsMenu } from '../../context/ContactsMenuContext'
 import { AuthService } from '../../services/auth'
 import {
   useSearch,
@@ -383,45 +384,21 @@ const ContactsMenu: React.FC = props => {
   )
 }
 
-type ResponsiveDrawerProps = {
-  open: boolean
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>
-}
-
 const drawerWidth = 300
 
-const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
+const ResponsiveDrawer: React.FC = props => {
   const matches = useMediaQuery((theme: Theme) => theme.breakpoints.up('md'))
-  const { open, setOpen } = props
-  const closeContacts = () => {
-    setOpen(false)
-  }
+  const contactsMenu = useContactsMenu()
+  const location = useLocation()
 
-  // const queryClient = useQueryClient()
-
-  // React.useEffect(() => {
-  //   const observer = new MutationObserver(queryClient, {
-  //     mutationKey: 'updateParty',
-  //     onMutate() {
-  //       console.log('wtf!!!')
-  //     },
-  //     onSuccess() {
-  //       setOpen(false)
-  //     },
-  //   })
-
-  //   const unsubscribe = observer.subscribe(() => {
-  //     console.log('fired!!!')
-  //   })
-
-  //   return () => {
-  //     unsubscribe()
-  //   }
-  // }, [queryClient, setOpen])
+  React.useEffect(() => {
+    contactsMenu.close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location])
 
   return (
     <Drawer
-      open={open}
+      open={contactsMenu.open}
       anchor='left'
       variant={matches ? 'permanent' : 'temporary'}
       sx={{
@@ -432,21 +409,40 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
       }}
     >
       <Container maxWidth={false} disableGutters>
-        <Box
-          position='relative'
-          textAlign='center'
-          sx={{ background: 'linear-gradient(#de59a9, #fa6715)' }}
+        <Header
+          position='static'
+          elevation={0}
+          sx={{
+            color: 'white',
+            background: 'linear-gradient(#de59a9, #fa6715)',
+            px: { sm: 2 },
+          }}
         >
-          <Hidden mdUp>
-            <IconButton
-              sx={{ position: 'absolute', left: 20, top: 12, color: 'white' }}
-              onClick={closeContacts}
-            >
-              <ArrowBackIcon />
-            </IconButton>
-          </Hidden>
-          <BrandName to='/dashboard' fontSize={20} py={2} />
-        </Box>
+          <Toolbar
+            component={Container}
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Hidden mdUp>
+              <IconButton
+                sx={{
+                  position: 'absolute',
+                  left: 16,
+                  top: 0,
+                  bottom: 0,
+                  color: 'white',
+                }}
+                onClick={contactsMenu.close}
+              >
+                <ArrowBackIcon />
+              </IconButton>
+            </Hidden>
+            <BrandName to='/dashboard' fontSize={20} />
+          </Toolbar>
+        </Header>
       </Container>
       <Container
         maxWidth={false}
@@ -470,18 +466,11 @@ const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = props => {
   )
 }
 
-type DashboardHeaderProps = {
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>
-}
-
-const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
+const DashboardHeader: React.FC = () => {
   const navigate = useNavigate()
   const user = useUser()
+  const contactsMenu = useContactsMenu()
   const popper = usePopper<HTMLButtonElement>()
-
-  const toggleContacts = () => {
-    setOpen(prev => !prev)
-  }
 
   const navigateTo = (to: To) => () => {
     popper.handlePopperClose()
@@ -507,7 +496,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ setOpen }) => {
     >
       <Toolbar component={Container} maxWidth='lg'>
         <Hidden mdUp>
-          <IconButton sx={{ mr: 'auto' }} onClick={toggleContacts}>
+          <IconButton sx={{ mr: 'auto' }} onClick={contactsMenu.toggle}>
             <GroupIcon />
           </IconButton>
         </Hidden>
@@ -610,20 +599,18 @@ const DashboardWindow: React.FC = props => {
 }
 
 const DashboardLayout: React.FC = props => {
-  const [open, setOpen] = React.useState(false)
-
   return (
     <>
-      <ResponsiveDrawer open={open} setOpen={setOpen} />
+      <ResponsiveDrawer />
       <DashboardWindow>
-        <DashboardHeader setOpen={setOpen} />
+        <DashboardHeader />
         <Container
           component='main'
           maxWidth='lg'
           sx={theme => ({
             position: 'relative',
             minHeight: '100%',
-            pb: { xs: 4, lg: 4 },
+            pb: { xs: 2, lg: 4 },
             px: { xs: 3, sm: 5 },
             display: 'flex',
             flexDirection: 'column',

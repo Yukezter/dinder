@@ -279,6 +279,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
         textOverflow='ellipsis'
         p={2}
         pt={0}
+        // display={{ xs: 'none', md: 'block' }}
       >
         {!party ? <Skeleton width='60%' /> : party.location.description}
       </Typography>

@@ -14,6 +14,7 @@ import { SnackbarProvider } from 'notistack'
 import { FinishAccountSetup } from '../components'
 import { useAuth, IAuthContext } from '../context/AuthContext'
 import { FirestoreProviders } from '../context/FirestoreContext'
+import { ContactsMenuProvider } from '../context/ContactsMenuContext'
 import { ProfileViewProvider } from '../context/ProfileViewContext'
 import { PartySettingsProvider } from '../context/PartySettingsContext'
 import { Landing, DashboardLayout, Dashboard, Settings, Party } from '../pages'
@@ -42,20 +43,24 @@ const ProtectedRoute = () => {
   return (
     <FirestoreProviders auth={auth as Required<IAuthContext>}>
       <PartySettingsProvider>
-        <ProfileViewProvider>
-          <SnackbarProvider
-            maxSnack={1}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'right',
-            }}
-            TransitionComponent={Zoom as React.ComponentType<TransitionProps>}
-          >
-            <DashboardLayout>
-              <Outlet context={{ auth } as { auth: Required<IAuthContext> }} />
-            </DashboardLayout>
-          </SnackbarProvider>
-        </ProfileViewProvider>
+        <ContactsMenuProvider>
+          <ProfileViewProvider>
+            <SnackbarProvider
+              maxSnack={1}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+              TransitionComponent={Zoom as React.ComponentType<TransitionProps>}
+            >
+              <DashboardLayout>
+                <Outlet
+                  context={{ auth } as { auth: Required<IAuthContext> }}
+                />
+              </DashboardLayout>
+            </SnackbarProvider>
+          </ProfileViewProvider>
+        </ContactsMenuProvider>
       </PartySettingsProvider>
     </FirestoreProviders>
   )

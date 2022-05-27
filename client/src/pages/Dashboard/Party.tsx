@@ -280,8 +280,7 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
       </Typography>
       <CardMedia
         component='img'
-        height={250}
-        width={250}
+        height={200}
         sx={{ mb: 2 }}
         image={match?.details.image}
         alt={match?.details.name}
@@ -300,7 +299,7 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
               size='small'
               color='primary'
               variant='filled'
-              sx={{ px: 1, mr: 1 }}
+              sx={{ px: 0.5 }}
             />
           </Box>
         </Grid>
@@ -695,7 +694,7 @@ const BusinessCard: React.FC<BusinessCardProps> = ({
                 size='small'
                 color='primary'
                 variant='filled'
-                sx={{ px: 1, mr: 1 }}
+                sx={{ px: 0.5 }}
               />
             </Box>
           </Grid>
@@ -894,8 +893,8 @@ const useGetYelpBusinesses = (
       return data
     },
     {
-      cacheTime: 24 * 60 * 60 * 1000,
-      staleTime: Infinity,
+      // cacheTime: 24 * 60 * 60 * 1000,
+      // staleTime: Infinity,
       select(data) {
         return {
           pageParams: data.pageParams,

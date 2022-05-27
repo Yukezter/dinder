@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useIsMutating } from 'react-query'
 import Dialog from '@mui/material/Dialog'
 import Box from '@mui/material/Box'
@@ -11,8 +12,10 @@ import RemoveIcon from '@mui/icons-material/RemoveCircleOutline'
 import BlockIcon from '@mui/icons-material/DoDisturb'
 import CloseIcon from '@mui/icons-material/Close'
 import LocalDiningTwoToneIcon from '@mui/icons-material/LocalDiningTwoTone'
+import SettingsIcon from '@mui/icons-material/Settings'
 
-import { User } from './FirestoreContext'
+import { User, useUser } from './FirestoreContext'
+import { useContactsMenu } from './ContactsMenuContext'
 import { usePartySettings } from './PartySettingsContext'
 import { useAddContact, useDeleteContact, useBlockContact } from '../hooks'
 import { Avatar, Button } from '../common/components'
@@ -23,12 +26,15 @@ type ProfileProps = {
 }
 
 const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
-  const queryClient = useQueryClient()
+  const user = useUser()
+  const contactsMenu = useContactsMenu()
   const { openSettings } = usePartySettings()
   const addContact = useAddContact(userProfile)
   const deleteContact = useDeleteContact(userProfile)
   const blockContact = useBlockContact(userProfile)
   const isMutating = useIsMutating(['contacts', userProfile.uid]) > 0
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const isContact = React.useCallback(
     (id: string) => {
@@ -81,45 +87,63 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, handleClose }) => {
           </Typography>
         </>
       )}
-      <Box display='flex' mb={1}>
-        {isContact(userProfile.uid) ? (
-          <IconButton
-            aria-label='delete-contact'
-            onClick={() => deleteContact.mutate(userProfile!)}
-            disabled={isMutating}
-          >
-            <RemoveIcon />
-          </IconButton>
-        ) : (
-          <IconButton
-            aria-label='add-contact'
-            onClick={() => addContact.mutate(userProfile!)}
-            disabled={isMutating}
-          >
-            <AddIcon />
-          </IconButton>
-        )}
-        <IconButton
-          aria-label='delete-contact'
-          onClick={() => blockContact.mutate(userProfile!)}
-          disabled={isMutating}
-        >
-          <BlockIcon />
-        </IconButton>
-      </Box>
-      {isContact(userProfile.uid) && (
+      {user.uid !== userProfile.uid ? (
+        <>
+          <Box display='flex' mb={1}>
+            {isContact(userProfile.uid) ? (
+              <IconButton
+                aria-label='delete-contact'
+                onClick={() => deleteContact.mutate(userProfile!)}
+                disabled={isMutating}
+              >
+                <RemoveIcon />
+              </IconButton>
+            ) : (
+              <IconButton
+                aria-label='add-contact'
+                onClick={() => addContact.mutate(userProfile!)}
+                disabled={isMutating}
+              >
+                <AddIcon />
+              </IconButton>
+            )}
+            <IconButton
+              aria-label='delete-contact'
+              onClick={() => blockContact.mutate(userProfile!)}
+              disabled={isMutating}
+            >
+              <BlockIcon />
+            </IconButton>
+          </Box>
+          {isContact(userProfile.uid) && (
+            <Button
+              size='small'
+              disabled={isMutating}
+              endIcon={<LocalDiningTwoToneIcon />}
+              onClick={() => {
+                handleClose()
+                openSettings({
+                  party: { members: [userProfile] },
+                  onSuccess() {
+                    contactsMenu.close()
+                  },
+                })
+              }}
+            >
+              Start
+            </Button>
+          )}
+        </>
+      ) : (
         <Button
           size='small'
-          disabled={isMutating}
-          endIcon={<LocalDiningTwoToneIcon />}
+          endIcon={<SettingsIcon />}
           onClick={() => {
             handleClose()
-            openSettings({
-              party: { members: [userProfile] },
-            })
+            navigate('settings/general')
           }}
         >
-          Start
+          Edit
         </Button>
       )}
     </Box>
