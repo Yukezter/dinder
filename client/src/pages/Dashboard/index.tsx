@@ -469,6 +469,7 @@ const ResponsiveDrawer: React.FC = props => {
 const DashboardHeader: React.FC = () => {
   const navigate = useNavigate()
   const user = useUser()
+  const profile = useProfile()
   const contactsMenu = useContactsMenu()
   const popper = usePopper<HTMLButtonElement>()
 
@@ -531,7 +532,10 @@ const DashboardHeader: React.FC = () => {
           <ClickAwayListener onClickAway={popper.handlePopperClose}>
             <MenuList component={Paper}>
               <MenuItem
-                onClick={navigateTo(`/profiles/${user.uid}`)}
+                onClick={() => {
+                  popper.handlePopperClose()
+                  profile.viewProfile(user)
+                }}
                 dense
                 sx={{
                   justifyContent: 'center',
