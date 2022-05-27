@@ -19,7 +19,9 @@ import {
   MotionProps,
   PanInfo,
 } from 'framer-motion'
-import { useTheme } from '@mui/material/styles'
+import JSConfetti from 'js-confetti'
+import useTheme from '@mui/material/styles/useTheme'
+import styled from '@mui/material/styles/styled'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
@@ -30,9 +32,7 @@ import Drawer from '@mui/material/Drawer'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
 import Hidden from '@mui/material/Hidden'
-import Card from '@mui/material/Card'
 import CardMedia from '@mui/material/CardMedia'
-import CardContent from '@mui/material/CardContent'
 import Popper from '@mui/material/Popper'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
 import { IconButtonProps } from '@mui/material/IconButton'
@@ -252,20 +252,62 @@ const SwipeButton: React.FC<SwipeButtonProps> = ({
   )
 }
 
+const ConfettiCanvas = styled('canvas')(({ theme }) => ({
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  height: '100%',
+  width: '100%',
+  zIndex: theme.zIndex.modal + 1,
+  pointerEvents: 'none',
+}))
+
+const emojis = ['🥨', '🍞', '🥓', '🍔', '🍗', '🌭', '🍕', '🌮', '🧇', '🥩']
+
+const Confetti = () => {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null)
+  const intervalID = React.useRef<NodeJS.Timer | number>()
+  const mounted = React.useRef<boolean>(true)
+
+  React.useEffect(() => {
+    mounted.current = true
+
+    if (canvasRef.current) {
+      const jsConfetti = new JSConfetti({
+        canvas: canvasRef.current,
+      })
+
+      jsConfetti.addConfetti({ emojis })
+      intervalID.current = setInterval(() => {
+        if (mounted.current) {
+          jsConfetti.addConfetti({ emojis })
+        }
+      }, 5000)
+
+      return () => {
+        clearInterval(intervalID.current as number)
+        mounted.current = false
+      }
+    }
+  }, [])
+
+  return <ConfettiCanvas ref={canvasRef} />
+}
+
 type MatchDialogProps = DialogProps & {
   match?: Match
 }
 
 const MatchDialog: React.FC<MatchDialogProps> = props => {
-  const { match, ...dialogProps } = props
+  const { match, open, ...dialogProps } = props
 
   return (
     <Dialog
       {...dialogProps}
-      PaperProps={{
-        sx: { width: '100%', maxWidth: 360, p: 2, m: 3 },
-      }}
+      open={open}
+      PaperProps={{ sx: { width: '100%', maxWidth: 360, p: 2, m: 3 } }}
     >
+      <Confetti />
       <Typography
         variant='h6'
         component='div'
