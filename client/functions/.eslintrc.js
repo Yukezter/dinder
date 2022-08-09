@@ -32,5 +32,8 @@ module.exports = {
     'object-curly-spacing': ['error', 'always'],
     'arrow-parens': ['error', 'as-needed'],
     indent: ['error', 2, { FunctionExpression: { parameters: 'first' } }],
+    camelcase: 0,
+    '@typescript-eslint/no-non-null-assertion': 0,
+    '@typescript-eslint/explicit-module-boundary-types': 0,
   },
 }

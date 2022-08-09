@@ -1,181 +1,130 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  query,
-  orderBy,
-  where,
-  onSnapshot,
-  QueryConstraint,
-  serverTimestamp,
-  DocumentSnapshot,
-  DocumentData,
-  QueryDocumentSnapshot,
-  WithFieldValue,
-  FirestoreError,
-  QuerySnapshot,
-  FieldPath,
-  DocumentReference,
-  CollectionReference,
-  OrderByDirection,
-  Query,
-  getDocs,
-  WhereFilterOp,
-  increment,
-} from 'firebase/firestore'
+import { getDoc, setDoc, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore'
 
-import api from '../app/api'
-import { firestore } from '../app/firebase'
 import {
   Match,
   Party,
   YelpResponse,
   SwipeAction,
   Swipes,
-} from '../context/FirestoreContext'
+  PopulatedParty,
+  UpdatePartyFields,
+  Business,
+} from '../types'
+import { cloud } from '../utils/api'
+import { BaseService } from '../utils/db'
+import { UsersService } from './users'
 
-const converter = <T>() => ({
-  toFirestore: (data: WithFieldValue<T>) => data as DocumentData,
-  fromFirestore: (snapshot: QueryDocumentSnapshot) => {
-    return snapshot.data() as T
-  },
-})
-
-const c = <T>(path: string, ...rest: string[]) => {
-  const ref = collection(firestore, path, ...rest).withConverter(converter<T>())
-  return {
-    ref,
-    queryConstraints: [] as QueryConstraint[],
-    where(fieldPath: string | FieldPath, opStr: WhereFilterOp, value: unknown) {
-      this.queryConstraints.push(where(fieldPath, opStr, value))
-      return this
-    },
-    orderBy(
-      fieldPath: string | FieldPath,
-      directionStr?: OrderByDirection | undefined
-    ) {
-      this.queryConstraints.push(orderBy(fieldPath, directionStr))
-      return this
-    },
-    query() {
-      const queryConstraints = [...this.queryConstraints]
-      this.queryConstraints = []
-      return query(ref, ...queryConstraints)
-    },
-  }
+type JSONTimestamp = {
+  _nanoseconds: number
+  _seconds: number
 }
 
-const d = <T>(path: string, ...rest: string[]) => {
-  return doc(firestore, path, ...rest).withConverter(converter<T>())
+type UpdatePartyResult = Omit<PopulatedParty, 'createdAt' | 'lastActive'> & {
+  createdAt: JSONTimestamp
+  lastActive: JSONTimestamp
 }
 
-export class PartiesService {
+type BusinessesResponse = Omit<YelpResponse, 'businesses'> & {
+  businesses: Business['details'][]
+}
+
+export class PartiesService extends BaseService {
   static collection = {
-    parties: () => c<Party>('parties'),
-    matches: (id: string) => c<Match>('parties', id, 'matches'),
+    parties: () => this.getCol<Party>('parties'),
+    matches: (id: string) => this.getCol<Match>('parties', id, 'matches'),
   }
 
   static doc = {
-    party: (id: string) => d<Party>('parties', id),
-    swipes: (id1: string, id2: string) =>
-      d<Swipes>('parties', id1, 'swipes', id2),
-    offsets: (id: string) => d<{ [userId: string]: number }>('offsets', id),
+    party: (id: string) => this.getDoc<Party>('parties', id),
+    swipes: (id1: string, id2: string) => this.getDoc<Swipes>('parties', id1, 'swipes', id2),
+    offsets: (id: string) => this.getDoc<{ [userId: string]: number }>('offsets', id),
+    members: (id: string) => this.getDoc<{ [userId: string]: true }>('members', id),
   }
 
-  static getParty = async (partyId: string) => {
+  static getParty = async (partyId?: string): Promise<PopulatedParty | undefined> => {
+    if (!partyId) {
+      return undefined
+    }
+
     const partyRef = this.doc.party(partyId)
     const usersSnapshot = await getDoc(partyRef)
-    return usersSnapshot.data()
+    let data = usersSnapshot.data()
+
+    if (data) {
+      const members = await UsersService.getUsers(data.members)
+      return { ...data, members }
+    }
+
+    return data
   }
 
-  static getParties = async (userId: string) => {
+  static getParties = async () => {
+    const user = this.getCurrentUser()
     const partiesQuery = this.collection
       .parties()
-      .where('members', 'array-contains', userId)
+      .where('members', 'array-contains', user.uid)
       .query()
 
     const usersSnapshot = await getDocs(partiesQuery)
-    return usersSnapshot.docs.map(doc => doc.data())
+    return usersSnapshot.docs.map(doc => doc.data()).filter(Boolean)
   }
 
-  static updateParty = async (party: Party) => {
-    const data = { data: party }
-    const res = await api.cloud.post<void>('/updateParty', data)
-    return res.data
+  static updateParty = async (party: UpdatePartyFields): Promise<PopulatedParty> => {
+    const res = await cloud.post<{ result: UpdatePartyResult }>('/updateParty', {
+      data: {
+        ...party,
+        members: party.members.map(({ uid }) => uid),
+      },
+    })
+
+    const { createdAt, lastActive, ...data } = res.data.result
+    return {
+      ...data,
+      createdAt: new Timestamp(createdAt._seconds, createdAt._nanoseconds),
+      lastActive: new Timestamp(lastActive._seconds, lastActive._nanoseconds),
+    }
   }
 
   static leaveParty = async (partyId: string) => {
     const data = { data: { partyId } }
-    const res = await api.cloud.post<void>('/leaveParty', data)
+    const res = await cloud.post<void>('/leaveParty', data)
     return res.data
   }
 
-  static getInitialOffset = async (userId: string, partyId: string) => {
+  static getYelpOffset = async (partyId: string) => {
+    const user = this.getCurrentUser()
     const offsetsRef = this.doc.offsets(partyId)
     const doc = await getDoc(offsetsRef)
-    return doc.exists() ? doc.data()[userId] || 0 : 0
+    return doc.exists() ? doc.data()[user.uid] || 0 : 0
   }
 
-  static setInitialOffset = async (
-    userId: string,
-    partyId: string,
-    value: number
-  ) => {
+  static setOffset = async (partyId: string, value: number) => {
+    const user = this.getCurrentUser()
     const offsetsRef = this.doc.offsets(partyId)
-    await setDoc(
-      offsetsRef,
-      {
-        [userId]: value,
-      },
-      { merge: true }
-    )
+    await setDoc(offsetsRef, { [user.uid]: value }, { merge: true })
   }
 
-  static getYelpBusinesses = async (
-    options: Party['params'] &
-      Party['location'] & {
-        offset: number
-      }
-  ) => {
-    const res = await api.cloud.post<{
+  static getPartyBusinesses = async (
+    options: Party['params'] & { offset: number }
+  ): Promise<BusinessesResponse> => {
+    const { data } = await cloud.post<{
       result: YelpResponse
     }>('/getYelpBusinesses', { data: options })
-    return res.data.result
+    return data.result
   }
 
-  static swipe = async (
-    userId: string,
-    partyId: string,
-    yelpId: string,
-    action: SwipeAction
-  ) => {
+  static swipe = async (partyId: string, yelpId: string, action: SwipeAction) => {
+    const user = this.getCurrentUser()
     const swipesRef = this.doc.swipes(partyId, yelpId)
     return setDoc(
       swipesRef,
       {
-        [userId]: {
+        [user.uid]: {
           action,
           timestamp: serverTimestamp(),
         },
       },
       { merge: true }
     )
-  }
-
-  static onCollectionSnapshot<TData>(
-    reference: CollectionReference<TData> | Query<TData>,
-    next: ((snapshot: QuerySnapshot<TData>) => void) | undefined,
-    error?: ((error: FirestoreError) => void) | undefined
-  ) {
-    return onSnapshot(reference, { next, error })
-  }
-
-  static onDocumentSnapshot<TData>(
-    reference: DocumentReference<TData>,
-    next: ((snapshot: DocumentSnapshot<TData>) => void) | undefined,
-    error?: ((error: FirestoreError) => void) | undefined
-  ) {
-    return onSnapshot(reference, { next, error })
   }
 }

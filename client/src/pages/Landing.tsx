@@ -1,9 +1,10 @@
+import { AuthErrorCodes } from 'firebase/auth'
 import React from 'react'
+import { AuthError } from 'firebase/auth'
 import { Navigate } from 'react-router-dom'
 import { useMutation } from 'react-query'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import GlobalStyles from '@mui/material/GlobalStyles'
-import styled from '@mui/material/styles/styled'
 import AppBar from '@mui/material/AppBar'
 import Toolbar from '@mui/material/Toolbar'
 import Box from '@mui/material/Box'
@@ -19,14 +20,9 @@ import LocalDiningTwoToneIcon from '@mui/icons-material/LocalDiningTwoTone'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 
 import { AuthService } from '../services/auth'
+import { getAuthErrorMessage } from '../errors'
 import { useAuth } from '../context/AuthContext'
-import {
-  Button,
-  FormAlert,
-  TextField,
-  FormPaper,
-  IconButton,
-} from '../common/components'
+import { Button, FormAlert, TextField, FormPaper, IconButton } from '../common/components'
 
 type SignUpFormInputs = {
   email: string
@@ -34,51 +30,67 @@ type SignUpFormInputs = {
 }
 
 const SignUp: React.FC = () => {
-  const form = useForm<SignUpFormInputs>()
+  const form = useForm<SignUpFormInputs>({ mode: 'onChange' })
+
   const [checked, setChecked] = React.useState(false)
 
-  const mutation = useMutation<void, Error, SignUpFormInputs>(async data => {
-    return AuthService.signUp(data.email, data.password)
-  })
+  const signUp = useMutation<void, AuthError, SignUpFormInputs>(
+    async data => {
+      return AuthService.signUp(data.email, data.password)
+    },
+    {
+      onError(error) {
+        if (error.code === AuthErrorCodes.EMAIL_EXISTS) {
+          form.setError('email', {
+            message: getAuthErrorMessage(error.code),
+          })
+        } else if (error.code === AuthErrorCodes.INVALID_EMAIL) {
+          form.setError('email', {
+            message: getAuthErrorMessage(error.code),
+          })
+        } else if (error.code === AuthErrorCodes.WEAK_PASSWORD) {
+          form.setError('password', {
+            message: getAuthErrorMessage(error.code),
+          })
+        }
+      },
+    }
+  )
 
   const onSubmit: SubmitHandler<SignUpFormInputs> = data => {
-    mutation.mutate(data)
+    signUp.mutate(data)
   }
 
-  const isDisabled = mutation.isLoading || mutation.isSuccess
+  const isLoading = signUp.isLoading || signUp.isSuccess
+  const isDisabled = !form.formState.isValid || !checked
 
   return (
     <>
-      <Typography variant='h5' mb={2}>
+      <Typography variant='h5' mb={3}>
         Create an account!
       </Typography>
-      {mutation.isError && (
-        <FormAlert message={mutation.error.message} onClose={mutation.reset} />
-      )}
       <form onSubmit={form.handleSubmit(onSubmit)}>
         <TextField
-          {...form.register('email', {
-            required: 'An email is required',
-          })}
-          disabled={isDisabled}
           id='email'
           label='Email'
           fullWidth
-          sx={{ mb: 2 }}
+          {...form.register('email', { required: true })}
+          error={!!form.formState.errors.email}
+          helperText={form.formState.errors.email?.message}
+          disabled={isLoading}
         />
         <TextField
-          {...form.register('password', {
-            required: 'A password is required',
-          })}
-          type='password'
-          disabled={isDisabled}
           id='password'
           label='Password'
           fullWidth
-          sx={{ mb: 2 }}
+          {...form.register('password', { required: true })}
+          type='password'
+          disabled={isLoading}
+          error={!!form.formState.errors.password}
+          helperText={form.formState.errors.password?.message}
         />
         <FormControlLabel
-          disabled={isDisabled}
+          disabled={isLoading}
           control={
             <Checkbox
               checked={checked}
@@ -100,12 +112,7 @@ const SignUp: React.FC = () => {
           }
           sx={{ mb: 2 }}
         />
-        <Button
-          type='submit'
-          fullWidth
-          loading={isDisabled}
-          disabled={!checked}
-        >
+        <Button type='submit' fullWidth loading={isLoading} disabled={isDisabled}>
           Create Account
         </Button>
       </form>
@@ -119,68 +126,71 @@ type SignInFormInputs = {
 }
 
 const SignIn: React.FC = () => {
-  const form = useForm<SignInFormInputs>()
+  const form = useForm<SignInFormInputs>({ mode: 'onChange' })
+
   const checkboxRef = React.useRef<HTMLInputElement>(null)
 
-  const mutation = useMutation<void, Error, SignInFormInputs>(
+  const signIn = useMutation<void, AuthError, SignInFormInputs>(
     async ({ email, password }) => {
       await AuthService.signIn(email, password)
+    },
+    {
+      onError(error) {
+        if (error.code === AuthErrorCodes.USER_DELETED) {
+          form.setError('email', {
+            message: getAuthErrorMessage(error.code),
+          })
+        } else if (error.code === AuthErrorCodes.INVALID_PASSWORD) {
+          form.setError('password', {
+            message: getAuthErrorMessage(error.code),
+          })
+        }
+      },
     }
   )
 
-  const onSubmit: SubmitHandler<SignInFormInputs> = data => {
-    const checked = checkboxRef.current!.value
-    const persistence = checked ? 'LOCAL' : 'SESSION'
-    AuthService.setPersistence(persistence).then(() => {
-      mutation.mutate(data)
-    })
+  const onSubmit: SubmitHandler<SignInFormInputs> = async data => {
+    const checked = checkboxRef.current?.value
+    await AuthService.setPersistence(checked ? 'LOCAL' : 'SESSION')
+    signIn.mutate(data)
   }
 
-  const isDisabled = mutation.isLoading || mutation.isSuccess
+  const isLoading = signIn.isLoading || signIn.isSuccess
+  const isDisabled = !form.formState.isValid
 
   return (
     <>
-      <Typography variant='h5' mb={2}>
+      <Typography variant='h5' mb={3}>
         Welcome back!
       </Typography>
-      {mutation.isError && (
-        <FormAlert message={mutation.error.message} onClose={mutation.reset} />
-      )}
       <form onSubmit={form.handleSubmit(onSubmit)}>
         <TextField
-          {...form.register('email', {
-            required: 'An email is required',
-          })}
           id='email'
           label='Email or username'
           fullWidth
-          disabled={isDisabled}
-          sx={{ mb: 3 }}
+          {...form.register('email', { required: true })}
+          error={!!form.formState.errors.email}
+          helperText={form.formState.errors.email?.message}
+          disabled={isLoading}
         />
         <TextField
-          {...form.register('password', {
-            required: 'A password is required',
-          })}
           type='password'
           id='password'
           label='Password'
           fullWidth
-          disabled={isDisabled}
-          sx={{ mb: 1 }}
+          {...form.register('password', { required: true })}
+          error={!!form.formState.errors.password}
+          helperText={form.formState.errors.password?.message}
+          disabled={isLoading}
         />
         <FormControlLabel
-          labelPlacement='start'
           control={
-            <Checkbox
-              inputRef={checkboxRef}
-              inputProps={{ 'aria-label': 'Agreement' }}
-              size='small'
-            />
+            <Checkbox inputRef={checkboxRef} inputProps={{ 'aria-label': 'Remember me?' }} />
           }
           label={<Typography variant='caption'>Remember me?</Typography>}
-          sx={{ ml: 0, mb: 1, justifyContent: 'space-between', width: '100%' }}
+          sx={{ mb: 2 }}
         />
-        <Button type='submit' fullWidth loading={isDisabled}>
+        <Button type='submit' fullWidth loading={isLoading} disabled={isDisabled}>
           Sign In
         </Button>
       </form>
@@ -199,12 +209,7 @@ const AuthForm: React.FC = () => {
 
   return (
     <>
-      <Box
-        height='100%'
-        display='flex'
-        justifyContent='center'
-        alignItems='center'
-      >
+      <Box height='100%' display='flex' justifyContent='center' alignItems='center'>
         <ToggleButtonGroup
           color='primary'
           value={formType}
@@ -222,16 +227,6 @@ const AuthForm: React.FC = () => {
     </>
   )
 }
-
-// const Root = styled(Box)(({ theme }) => ({
-//   minHeight: '100%',
-//   width: '100%',
-//   position: 'relative',
-//   overflowY: 'auto',
-//   [theme.breakpoints.up('md')]: {
-//     height: '100%',
-//   },
-// }))
 
 const Typewriter = () => {
   const [text, setText] = React.useState('')
@@ -301,7 +296,7 @@ const Typewriter = () => {
   )
 }
 
-const Landing = () => {
+export const Landing = () => {
   const auth = useAuth()
 
   if (auth.user) {
@@ -399,5 +394,3 @@ const Landing = () => {
     </>
   )
 }
-
-export default Landing

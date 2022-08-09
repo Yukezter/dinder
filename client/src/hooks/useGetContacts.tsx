@@ -1,38 +1,27 @@
 import { useQuery, UseQueryOptions } from 'react-query'
 
+import { Contacts } from '../types'
 import { UsersService } from '../services/users'
-import { useContacts, User } from '../context/FirestoreContext'
+import { userKeys } from '../utils/queryKeys'
 
-const useGetContacts = (options: UseQueryOptions<User[]> = {}) => {
-  const contacts = useContacts()
-
-  return useQuery<User[]>(
-    'contacts',
+export const useGetContacts = <T extends unknown = Contacts>(
+  options: UseQueryOptions<Contacts, unknown, T> = {}
+) => {
+  return useQuery<Contacts, unknown, T>(
+    userKeys.contacts.all(),
     async () => {
-      if (!contacts || Object.keys(contacts).length === 0) {
-        return []
+      const contacts = await UsersService.getContacts()
+      const contactIds = Object.keys(contacts)
+      const users = await UsersService.getUsers(contactIds)
+      return {
+        added: users.filter(contact => contacts[contact.uid] === true),
+        blocked: users.filter(contact => contacts[contact.uid] === false),
       }
-
-      const snap = await UsersService.getUsers(Object.keys(contacts))
-      return snap.docs.map(doc => doc.data())
     },
     {
-      keepPreviousData: true,
-      staleTime: 60 * 1000,
-      select(data) {
-        return data.sort((a, b) => {
-          if (a.name < b.name) {
-            return -1
-          }
-          if (a.name > b.name) {
-            return 1
-          }
-          return 0
-        })
-      },
+      cacheTime: 60 * 60 * 1000,
+      staleTime: Infinity,
       ...options,
     }
   )
 }
-
-export default useGetContacts

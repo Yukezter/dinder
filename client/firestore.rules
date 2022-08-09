@@ -5,12 +5,16 @@ service cloud.firestore {
       return request.auth.uid != null; 
     }
 
+    function ownsResource(userId) {
+      return request.auth.uid == userId;
+    }
+
     function hasAccess() {
       return request.auth.token.accessLevel == 1;
     }
 
-    function ownsResource(userId) {
-      return request.auth.uid == userId;
+    function hasPartyAccess(partyId) {
+      return get(/databases/$(database)/documents/members/$(partyId)).data[request.auth.uid] == true;
     }
 
     function hasOnlyKeys(fields) {
@@ -35,45 +39,73 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
 
+      function validateCategory(category) {
+        return category.alias is string && category.title is string
+      }
+
       match /businesses/{yelpId} {
         allow read, delete: if ownsResource(userId);
         allow create, update: if hasAccess() && ownsResource(userId) &&
-          request.resource.data.keys().hasOnly(['type', 'id', 'details']) &&
-          (request.resource.data.type == 'save' || request.resource.data.type == 'block') &&
-          request.resource.data.id is string &&
-          request.resource.data.details.image is string &&
+          request.resource.data.keys().hasOnly(['type', 'createdAt', 'details']) &&
+          request.resource.data.createdAt is timestamp &&
+          (request.resource.data.type == 'favorite' || request.resource.data.type == 'block') &&
+          request.resource.data.details.keys().hasOnly(['id', 'image_url', 'name', 'rating', 'price', 'categories', 'location', 'display_address', 'review_count', 'url']) &&
+          request.resource.data.details.id is string &&
+          request.resource.data.details.image_url is string &&
           request.resource.data.details.name is string &&
           (request.resource.data.details.rating is int || request.resource.data.details.rating is float) && 
           request.resource.data.details.price is string &&
-          request.resource.data.details.categories is string &&
-          request.resource.data.details.location is string &&
-          request.resource.data.details.reviews is int &&
+          request.resource.data.details.categories is list &&
+          ((request.resource.data.details.categories.size() == 1 &&
+          validateCategory(request.resource.data.details.categories[0])) ||
+          (request.resource.data.details.categories.size() == 2 &&
+          validateCategory(request.resource.data.details.categories[0]) &&
+          validateCategory(request.resource.data.details.categories[1])) ||
+          (request.resource.data.details.categories.size() == 3 &&
+          validateCategory(request.resource.data.details.categories[0]) &&
+          validateCategory(request.resource.data.details.categories[1]) &&
+          validateCategory(request.resource.data.details.categories[2]))) &&
+          request.resource.data.details.location.keys().hasOnly(['city', 'country', 'state', 'zip_code', 'address1', 'address2', 'address3']) &&
+          request.resource.data.details.location.city is string &&
+          request.resource.data.details.location.country is string &&
+          request.resource.data.details.location.state is string &&
+          request.resource.data.details.location.zip_code is string &&
+          request.resource.data.details.location.address1 == null || request.resource.data.details.location.address1 is string &&
+          request.resource.data.details.location.address2 == null || request.resource.data.details.location.address2 is string &&
+          request.resource.data.details.location.address3 == null || request.resource.data.details.location.address3 is string &&
+          // (!('address2' in request.resource.data.details.location) || request.resource.data.details.location.address2 == null || request.resource.data.details.location.address2 is string) &&
+          // (!('address3' in request.resource.data.details.location) || request.resource.data.details.location.address3 == null || request.resource.data.details.location.address3 is string) &&
+          request.resource.data.details.location.display_address is list &&
+          ((request.resource.data.details.location.display_address.size() == 1 &&
+          request.resource.data.details.location.display_address[0] is string) ||
+          (request.resource.data.details.location.display_address.size() == 2 &&
+          request.resource.data.details.location.display_address[0] is string &&
+          request.resource.data.details.location.display_address[1] is string) ||
+          (request.resource.data.details.location.display_address.size() == 3 &&
+          request.resource.data.details.location.display_address[0] is string &&
+          request.resource.data.details.location.display_address[1] is string &&
+          request.resource.data.details.location.display_address[2] is string)) &&
+          request.resource.data.details.review_count is int &&
           request.resource.data.details.url is string;
       }
     }
 
     match /contacts/{userId} {
       allow read: if isAuthenticated();
-      // allow write: if hasAccess() && ownsResource(userId);
-      // allow create, update: if hasAccess()
-      //   && ownsResource(userId)
-      //   || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']))
     }
 
     match /parties/{partyId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && resource == null || request.auth.uid in resource.data.members;
 
       match /swipes/{yelpId} {
-        allow read: if hasAccess();
-        allow create: if hasAccess() &&
-          request.auth.uid in get(/databases/$(database)/documents/parties/$(partyId)).data.members &&
+        allow read: if hasAccess() && hasPartyAccess(partyId);
+        allow create: if hasAccess() && hasPartyAccess(partyId) &&
           request.resource.data.keys().hasOnly([request.auth.uid]) &&
           request.resource.data[request.auth.uid].action == 'dislike' ||
           request.resource.data[request.auth.uid].action == 'super-like' ||
           request.resource.data[request.auth.uid].action == 'like' &&
           request.resource.data[request.auth.uid].timestamp is timestamp;
-        allow update: if hasAccess() &&
-          request.auth.uid in get(/databases/$(database)/documents/parties/$(partyId)).data.members &&
+        allow update: if hasAccess() && hasPartyAccess(partyId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([request.auth.uid]) &&
           request.resource.data[request.auth.uid].action == 'dislike' ||
           request.resource.data[request.auth.uid].action == 'super-like' ||
@@ -82,18 +114,18 @@ service cloud.firestore {
       }
 
       match /matches/{yelpId} {
-        allow read: if hasAccess();
+        allow read: if hasAccess() && hasPartyAccess(partyId);
       }
     }
 
     match /offsets/{partyId} {
       allow read: if hasAccess();
-      allow create: if hasAccess() &&
+      allow create: if hasAccess() && hasPartyAccess(partyId) &&
         request.resource.data.keys().hasOnly([request.auth.uid]) &&
         request.resource.data[request.auth.uid] is int &&
         request.resource.data[request.auth.uid] >= 0 &&
         request.resource.data[request.auth.uid] < 1000;
-      allow update: if hasAccess() &&
+      allow update: if hasAccess() && hasPartyAccess(partyId) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([request.auth.uid]) &&
         request.resource.data[request.auth.uid] is int &&
         request.resource.data[request.auth.uid] >= 0 &&

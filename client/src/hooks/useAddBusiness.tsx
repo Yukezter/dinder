@@ -1,39 +1,40 @@
-import { useMutation, UseMutationOptions, useQueryClient } from 'react-query'
+import { useMutation, UseMutationOptions, useQueryClient, QueryKey } from 'react-query'
 
+import { Business } from '../types'
 import { UsersService } from '../services/users'
-import { useUser, Business } from '../context/FirestoreContext'
+import { userKeys } from '../utils/queryKeys'
 
-const useAddBusiness = (
-  options?: UseMutationOptions<void, unknown, Business>
-) => {
+type VBusiness = Omit<Business, 'createdAt'>
+
+type Context = { previousBusinesses: VBusiness[]; queryKey: QueryKey }
+
+export const useAddBusiness = (options?: UseMutationOptions<void, unknown, VBusiness, Context>) => {
   const queryClient = useQueryClient()
-  const user = useUser()
-  return useMutation<void, unknown, Business, Business | undefined>(
-    data => UsersService.addBusiness(user.uid, data),
-    {
-      onMutate(data) {
-        const oldData = queryClient.getQueryData<Business[]>('businesses')!
-        const oldBusiness = oldData.find(({ id }) => id === data.id)
-        const newData = [data, ...oldData.filter(({ id }) => id !== data.id)]
 
-        queryClient.setQueryData<Business[]>('businesses', newData)
+  return useMutation<void, unknown, VBusiness, Context>(data => UsersService.addBusiness(data), {
+    onMutate: async data => {
+      const queryKey = userKeys.businesses.all()
+      await queryClient.cancelQueries(queryKey)
 
-        if (oldBusiness) {
-          return oldBusiness
-        }
-      },
-      onError(error, data, oldBusiness) {
-        const currentData = queryClient.getQueryData<Business[]>('businesses')!
-        const newData = currentData.filter(({ id }) => id !== data.id)
+      const previousBusinesses = queryClient.getQueryData<VBusiness[]>(queryKey)
+      if (previousBusinesses) {
+        const newBusinesses = [...previousBusinesses, data]
+        queryClient.setQueryData<VBusiness[]>(queryKey, newBusinesses)
 
-        if (oldBusiness) {
-          newData.unshift(oldBusiness)
-        }
-
-        queryClient.setQueryData<Business[]>('businesses', newData)
-      },
-    }
-  )
+        return { previousBusinesses, queryKey }
+      }
+    },
+    onError: (error, data, context) => {
+      if (context) {
+        const { queryKey, previousBusinesses } = context
+        queryClient.setQueryData<VBusiness[]>(queryKey, previousBusinesses)
+      }
+    },
+    onSettled: (data, error, variables, context) => {
+      if (context) {
+        queryClient.invalidateQueries(context.queryKey)
+      }
+    },
+    ...options,
+  })
 }
-
-export default useAddBusiness

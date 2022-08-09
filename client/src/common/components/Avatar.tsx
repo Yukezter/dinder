@@ -4,7 +4,7 @@ import Skeleton from '@mui/material/Skeleton'
 import Badge from '@mui/material/Badge'
 import Avatar, { AvatarProps } from '@mui/material/Avatar'
 
-import { usePresence } from '../../context/FirestoreContext'
+import { usePresence } from '../../context'
 
 const getSize = (size: CustomAvatarProps['size']) => {
   switch (size) {
@@ -52,11 +52,7 @@ interface CustomAvatarProps extends AvatarProps {
   size?: 'small' | 'medium' | 'large' | number
 }
 
-const CustomAvatar: React.FC<CustomAvatarProps> = ({
-  size,
-  style,
-  ...props
-}) => (
+const CustomAvatar: React.FC<CustomAvatarProps> = ({ size, style, ...props }) => (
   <Avatar
     style={{
       ...getSize(size),

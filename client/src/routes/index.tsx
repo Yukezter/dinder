@@ -1,70 +1,18 @@
-import {
-  RouteObject,
-  useRoutes,
-  useLocation,
-  Navigate,
-  Outlet,
-} from 'react-router-dom'
-import GlobalStyles from '@mui/material/GlobalStyles'
-import Zoom from '@mui/material/Zoom'
-import { TransitionProps } from '@mui/material/transitions'
-import CircularProgress from '@mui/material/CircularProgress'
-import { SnackbarProvider } from 'notistack'
+import { RouteObject, useRoutes, Navigate } from 'react-router-dom'
 
-import { FinishAccountSetup } from '../components'
-import { useAuth, IAuthContext } from '../context/AuthContext'
-import { FirestoreProviders } from '../context/FirestoreContext'
-import { ContactsMenuProvider } from '../context/ContactsMenuContext'
-import { ProfileViewProvider } from '../context/ProfileViewContext'
-import { PartySettingsProvider } from '../context/PartySettingsContext'
-import { Landing, DashboardLayout, Dashboard, Settings, Party } from '../pages'
+import ProtectedRoute from './ProtectedRoute'
+import ProtectedPartyRoute from './ProtectedPartyRoute'
 import {
+  Landing,
+  Dashboard,
+  Party,
+  Settings,
   GeneralSettings,
   PersonalSettings,
   PasswordSettings,
-} from '../pages/Dashboard/Settings'
-
-const ProtectedRoute = () => {
-  const location = useLocation()
-  const auth = useAuth()
-
-  if (!auth.user) {
-    return <Navigate to='/' state={{ from: location }} />
-  }
-
-  if (auth.claims?.accessLevel === undefined) {
-    return <CircularProgress sx={{ m: 'auto' }} />
-  }
-
-  if (auth.claims?.accessLevel === 0) {
-    return <FinishAccountSetup />
-  }
-
-  return (
-    <FirestoreProviders auth={auth as Required<IAuthContext>}>
-      <PartySettingsProvider>
-        <ContactsMenuProvider>
-          <ProfileViewProvider>
-            <SnackbarProvider
-              maxSnack={1}
-              anchorOrigin={{
-                vertical: 'bottom',
-                horizontal: 'right',
-              }}
-              TransitionComponent={Zoom as React.ComponentType<TransitionProps>}
-            >
-              <DashboardLayout>
-                <Outlet
-                  context={{ auth } as { auth: Required<IAuthContext> }}
-                />
-              </DashboardLayout>
-            </SnackbarProvider>
-          </ProfileViewProvider>
-        </ContactsMenuProvider>
-      </PartySettingsProvider>
-    </FirestoreProviders>
-  )
-}
+  Forbidden,
+  NotFound,
+} from '../pages'
 
 const Routes = () => {
   const routes: RouteObject[] = [
@@ -74,16 +22,7 @@ const Routes = () => {
     },
     {
       path: '/*',
-      element: (
-        <>
-          <GlobalStyles
-            styles={{
-              body: { background: '#fafafa' },
-            }}
-          />
-          <ProtectedRoute />
-        </>
-      ),
+      element: <ProtectedRoute />,
       children: [
         {
           path: 'dashboard',
@@ -107,17 +46,25 @@ const Routes = () => {
           ],
         },
         {
-          path: 'party/:partyId/*',
+          element: <ProtectedPartyRoute />,
           children: [
             {
-              index: true,
+              path: 'party/:partyId',
               element: <Party />,
             },
           ],
         },
         {
+          path: '403',
+          element: <Forbidden />,
+        },
+        {
+          path: '404',
+          element: <NotFound />,
+        },
+        {
           path: '*',
-          element: 'Page not found.',
+          element: <Navigate to='/404' replace />,
         },
       ],
     },
@@ -128,21 +75,7 @@ const Routes = () => {
   ]
 
   const element = useRoutes(routes)
-  return (
-    <>
-      <GlobalStyles
-        styles={{
-          body: {
-            '& > div#root': {
-              display: 'flex',
-              minHeight: 'var(--app-height, 100vh)',
-            },
-          },
-        }}
-      />
-      {element}
-    </>
-  )
+  return element
 }
 
 export default Routes

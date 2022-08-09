@@ -1,26 +1,27 @@
 import React from 'react'
 import AvatarGroup, { AvatarGroupProps } from '@mui/material/AvatarGroup'
-import Avatar from '@mui/material/Avatar'
+// import Avatar from '@mui/material/Avatar'
 import Popover from '@mui/material/Popover'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import Skeleton from '@mui/material/Skeleton'
+// import Skeleton from '@mui/material/Skeleton'
 
-import { User } from '../../context/FirestoreContext'
+import { User } from '../../types'
+import Avatar from './Avatar'
 
 interface CustomAvatarGroupProps extends AvatarGroupProps {
-  size?: 'small' | 'medium'
   disablePopover?: boolean
   users?: User[]
 }
 
 const CustomAvatarGroup: React.FC<CustomAvatarGroupProps> = ({
   disablePopover = false,
-  size = 'medium',
   users,
+  sx = [],
   ...props
 }) => {
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null)
+  const open = Boolean(anchorEl)
 
   const handlePopoverOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -30,60 +31,47 @@ const CustomAvatarGroup: React.FC<CustomAvatarGroupProps> = ({
     setAnchorEl(null)
   }
 
-  const open = Boolean(anchorEl)
+  const hasPopover = users && !disablePopover
 
   return (
     <>
       <AvatarGroup
         spacing={6}
         max={3}
-        sx={{
-          mr: 1,
-          justifyContent: { xs: 'center', sm: 'flex-end' },
-          '& > .MuiAvatarGroup-avatar': {
-            ...(size === 'small' && {
-              width: 24,
-              height: 24,
-              fontSize: theme => theme.typography.caption.fontSize,
-            }),
-            ...(size === 'medium' && {
-              width: { xs: 24, sm: 40 },
-              height: { xs: 24, sm: 40 },
-            }),
+        sx={[
+          {
+            mr: 1,
+            justifyContent: 'center',
           },
-        }}
-        {...(users &&
-          !disablePopover && {
-            'aria-owns': open ? 'mouse-over-popover' : undefined,
-            'aria-haspopup': 'true',
-            onMouseEnter: handlePopoverOpen,
-            onMouseLeave: handlePopoverClose,
-          })}
+          ...(Array.isArray(sx) ? sx : [sx]),
+        ]}
+        {...(hasPopover && {
+          'aria-owns': open ? 'avatar-group-popover' : undefined,
+          'aria-haspopup': 'true',
+          onMouseEnter: handlePopoverOpen,
+          onMouseLeave: handlePopoverClose,
+        })}
         {...props}
       >
         {!users
           ? Array.from(Array(3)).map((_, index) => <Avatar key={index} />)
-          : users.map(({ uid, photoURL }) => (
-              <Avatar key={uid} src={photoURL} />
-            ))}
+          : users.map(({ uid, photoURL }) => <Avatar key={uid} src={photoURL} />)}
       </AvatarGroup>
-      {users && !disablePopover && (
+      {hasPopover && (
         <Popover
-          id='mouse-over-popover'
-          sx={{
-            pointerEvents: 'none',
-          }}
+          id='avatar-group-popover'
+          sx={{ pointerEvents: 'none' }}
           open={open}
+          onClose={handlePopoverClose}
           anchorEl={anchorEl}
           anchorOrigin={{
             vertical: 'bottom',
-            horizontal: 'left',
+            horizontal: 'center',
           }}
           transformOrigin={{
             vertical: 'top',
-            horizontal: 'left',
+            horizontal: 'center',
           }}
-          onClose={handlePopoverClose}
           disableRestoreFocus
           disableScrollLock
         >

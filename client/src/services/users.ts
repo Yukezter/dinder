@@ -1,97 +1,37 @@
 import {
-  collection as _collection,
-  doc as _doc,
   getDoc,
   setDoc,
   deleteDoc,
-  query,
-  orderBy,
-  where,
   onSnapshot,
-  QueryConstraint,
-  DocumentSnapshot,
-  DocumentData,
   Unsubscribe,
-  QueryDocumentSnapshot,
-  WithFieldValue,
   FirestoreError,
   QuerySnapshot,
-  FieldPath,
   documentId,
-  DocumentReference,
-  CollectionReference,
-  OrderByDirection,
-  Query,
   getDocs,
-  WhereFilterOp,
+  Timestamp,
+  serverTimestamp,
 } from 'firebase/firestore'
 import { ref, uploadBytes, deleteObject } from 'firebase/storage'
 
-import api from '../app/api'
-import { firestore, storage, auth } from '../app/firebase'
-import {
-  OnlineStatus,
-  Username,
-  User,
-  Contacts,
-  Business,
-} from '../context/FirestoreContext'
+import { OnlineStatus, Username, User, Business } from '../types'
+import { cloud } from '../utils/api'
+import { storage } from '../firebase'
+import { BaseService } from '../utils/db'
 
-const converter = <T>() => ({
-  toFirestore: (data: WithFieldValue<T>) => data as DocumentData,
-  fromFirestore: (snapshot: QueryDocumentSnapshot) => {
-    return snapshot.data() as T
-  },
-})
-
-const c = <T>(path: string, ...rest: string[]) => {
-  const ref = _collection(firestore, path, ...rest).withConverter(
-    converter<T>()
-  )
-  return {
-    ref,
-    queryConstraints: [] as QueryConstraint[],
-    where(fieldPath: string | FieldPath, opStr: WhereFilterOp, value: unknown) {
-      this.queryConstraints.push(where(fieldPath, opStr, value))
-      return this
-    },
-    orderBy(
-      fieldPath: string | FieldPath,
-      directionStr?: OrderByDirection | undefined
-    ) {
-      this.queryConstraints.push(orderBy(fieldPath, directionStr))
-      return this
-    },
-    query() {
-      const queryConstraints = [...this.queryConstraints]
-      this.queryConstraints = []
-      return query(ref, ...queryConstraints)
-    },
-  }
-}
-
-const d = <T>(path: string, ...rest: string[]) => {
-  return _doc(firestore, path, ...rest).withConverter(converter<T>())
-}
-
-export class UsersService {
+export class UsersService extends BaseService {
   static collection = {
-    usernames: () => c<Username>('usernames'),
-    status: () => c<OnlineStatus>('status'),
-    users: () => c<User>('users'),
-    businesses: (userId: string) => c<Business>('users', userId, 'businesses'),
+    usernames: () => this.getCol<Username>('usernames'),
+    status: () => this.getCol<OnlineStatus>('status'),
+    users: () => this.getCol<User>('users'),
+    businesses: (userId: string) => this.getCol<Business>('users', userId, 'businesses'),
   }
 
   static doc = {
-    usernames: (username: string) => d<Username>('usernames', username),
-    user: (userId: string) => d<User>('users', userId),
-    contacts: (userId: string) => d<Contacts>('contacts', userId),
-    businesses: (userId: string, yelpId: string) =>
-      d<Business>('users', userId, 'businesses', yelpId),
-  }
-
-  static async getCurrentUser() {
-    return auth.currentUser
+    usernames: (username: string) => this.getDoc<Username>('usernames', username),
+    user: (id: string) => this.getDoc<User>('users', id),
+    contacts: (id: string) => this.getDoc<{ [id: string]: boolean }>('contacts', id),
+    businesses: (id1: string, id2: string) =>
+      this.getDoc<Business>('users', id1, 'businesses', id2),
   }
 
   static async usernameExists(username: string) {
@@ -100,41 +40,12 @@ export class UsersService {
     return usernameDoc.exists()
   }
 
-  static async getUser(userId: string) {
-    const userRef = this.doc.user(userId)
-    const snapshot = await getDoc(userRef)
-    return snapshot.data()
-  }
-
-  static getUsers = async (userIds: string[]) => {
-    const userRef = this.collection.users().ref
-    const usersQuery = query(userRef, where(documentId(), 'in', userIds))
-    const usersSnapshot = await getDocs(usersQuery)
-    return usersSnapshot
-  }
-
-  static getBusinesses = async (userId: string) => {
-    const businessesRef = this.collection.businesses(userId).ref
-    const snapshot = await getDocs(businessesRef)
-    return snapshot.docs.map(doc => doc.data()).filter(b => b)
-  }
-
-  static addBusiness = async (userId: string, data: Business) => {
-    const businessesRef = this.doc.businesses(userId, data.id)
-    return setDoc(businessesRef, data)
-  }
-
-  static deleteBusiness = async (userId: string, yelpId: string) => {
-    const businessesRef = this.doc.businesses(userId, yelpId)
-    return deleteDoc(businessesRef)
-  }
-
   static updateUser = async (
     data: Pick<User, 'name' | 'username'> & {
       about?: string
     }
   ) => {
-    const res = await api.cloud.post<void>('/updateUser', { data })
+    const res = await cloud.post<void>('/updateUser', { data })
     return res.data
   }
 
@@ -148,22 +59,68 @@ export class UsersService {
     return deleteObject(profilePhotoRef)
   }
 
-  static addContact = async (contactId: string) => {
-    const data = { data: { contactId } }
-    const res = await api.cloud.post<string>('/addContact', data)
+  static async getUser(userId: string) {
+    const userRef = this.doc.user(userId)
+    const snapshot = await getDoc(userRef)
+    return snapshot.data()
+  }
+
+  static getUsers = async (userIds: string[]) => {
+    if (userIds.length === 0) {
+      return []
+    }
+
+    const q = this.collection.users().where(documentId(), 'in', userIds).query()
+    const usersSnapshot = await getDocs(q)
+    return usersSnapshot.docs.map(doc => doc.data()).filter(Boolean)
+  }
+
+  static getContacts = async () => {
+    const user = this.getCurrentUser()
+    const contactsRef = this.doc.contacts(user.uid)
+    const contacts = await getDoc(contactsRef)
+    return contacts.data() || {}
+  }
+
+  static addContact = async (id: string) => {
+    const data = { data: { id } }
+    const res = await cloud.post<string>('/addContact', data)
     return res.data
   }
 
-  static deleteContact = async (contactId: string) => {
-    const data = { data: { contactId } }
-    const res = await api.cloud.post<string>('/deleteContact', data)
+  static deleteContact = async (id: string) => {
+    const data = { data: { id } }
+    const res = await cloud.post<string>('/deleteContact', data)
     return res.data
   }
 
-  static blockContact = async (contactId: string) => {
-    const data = { data: { contactId } }
-    const res = await api.cloud.post<string>('/blockContact', data)
+  static blockUser = async (id: string) => {
+    const data = { data: { id } }
+    const res = await cloud.post<string>('/blockUser', data)
     return res.data
+  }
+
+  static getBusinesses = async () => {
+    const user = this.getCurrentUser()
+    const businessesQuery = this.collection.businesses(user.uid).orderBy('createdAt').query()
+    const snapshot = await getDocs(businessesQuery)
+    return snapshot.docs.map(doc => doc.data()).filter(Boolean)
+  }
+
+  static addBusiness = async (data: Omit<Business, 'createdAt'> & { createdAt?: Timestamp }) => {
+    const user = this.getCurrentUser()
+    const businessesRef = this.doc.businesses(user.uid, data.details.id)
+    console.log(data)
+    return setDoc(businessesRef, {
+      ...data,
+      createdAt: serverTimestamp(),
+    })
+  }
+
+  static deleteBusiness = async (yelpId: string) => {
+    const user = this.getCurrentUser()
+    const businessesRef = this.doc.businesses(user.uid, yelpId)
+    return deleteDoc(businessesRef)
   }
 
   /* SNAPSHOT EVENT LISTENERS */
@@ -181,28 +138,7 @@ export class UsersService {
     onNext: (snapshot: QuerySnapshot<OnlineStatus>) => void,
     onError?: (error: FirestoreError) => void
   ): Unsubscribe => {
-    const q = this.collection
-      .status()
-      .where(documentId(), 'in', contactIds)
-      .query()
+    const q = this.collection.status().where(documentId(), 'in', contactIds).query()
     return onSnapshot(q, onNext, onError)
   }
-
-  static onCollectionSnapshot = <TData>(
-    reference: CollectionReference<TData> | Query<TData>,
-    next: ((snapshot: QuerySnapshot<TData>) => void) | undefined,
-    error?: ((error: FirestoreError) => void) | undefined
-  ) => {
-    return onSnapshot(reference, { next, error })
-  }
-
-  static onDocumentSnapshot = <TData>(
-    reference: DocumentReference<TData>,
-    next: ((snapshot: DocumentSnapshot<TData>) => void) | undefined,
-    error?: ((error: FirestoreError) => void) | undefined
-  ) => {
-    return onSnapshot(reference, { next, error })
-  }
 }
-
-export default new UsersService()

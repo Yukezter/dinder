@@ -1,95 +1,52 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-promise-reject-errors */
-// import * as functions from 'firebase-functions'
-// import * as admin from 'firebase-admin'
-// import { firestore } from './app'
-import Schema, {
-  // ValidateMessages,
-  Rule,
-  ValidateOption,
-} from 'async-validator'
+import * as functions from 'firebase-functions'
+import { AuthData } from 'firebase-functions/lib/common/providers/tasks'
+import Schema, { Rule, ValidateOption, ValidateCallback } from 'async-validator'
+import { AsyncValidationError } from 'async-validator/dist-types/util'
 
-// const messages: ValidateMessages = {
-//   required: '%s is required',
-// }
+import * as refs from './refs'
 
-const name: Rule = {
-  type: 'string',
-  message: 'A name is required',
-}
+type ValidateContext = { auth?: AuthData }
+type ValidateOptions = ValidateOption & ValidateContext & { [key: string]: any }
 
-type ValidateContext = {
-  uid: string
-  usernameData?: {
-    uid: string
+// eslint-disable-next-line require-jsdoc
+class ValidationSchema extends Schema {
+  // eslint-disable-next-line require-jsdoc
+  async validate<T>(
+    source: T,
+    option: ValidateOptions = {},
+    callback?: ValidateCallback
+  ): Promise<T> {
+    try {
+      const values = await super.validate(
+        source,
+        { firstFields: true, ...option },
+        callback
+      )
+
+      for (const key in values) {
+        if (values[key] === undefined) {
+          delete values[key]
+        }
+      }
+
+      return values as T
+    } catch (e) {
+      const { errors } = e as AsyncValidationError
+      throw new functions.https.HttpsError('invalid-argument', 'Validation Error', {
+        type: 'validation',
+        errors,
+      })
+    }
   }
 }
 
-type ValidateOptions = ValidateOption & ValidateContext
-
-const username: Rule = [
-  {
-    type: 'string',
-    min: 3,
-    max: 30,
-    pattern: /^(?!\.\.?$)(?!.*__.*__)([^/]{3,30})$/,
-    message: 'Username must be alphanumeric and 3-30 characters',
-  },
-  {
-    asyncValidator: async (rule, username, cb, source, options) => {
-      const o = options as ValidateOptions
-
-      // If exists and not this user's, someone else owns it
-      if (o?.usernameData && o.usernameData.uid !== o.uid) {
-        return Promise.reject('Username unavailable')
-      }
-
-      return username
-    },
-    // asyncValidator: async (rule, value, cb, source, o) => {
-    //   const username = value
-    //   const options = o as ValidateOptions
-    //   const uid = options?.uid
-    //   const usernameRef = admin
-    //     .firestore()
-    //     .collection('usernames')
-    //     .doc(username)
-    //   const usernameDoc = await usernameRef.get()
-
-    //   if (usernameDoc.exists && usernameDoc.data()?.uid === uid) {
-    //     return Promise.reject('Username already owned')
-    //   }
-
-    //   // If not assigned and exists, someone else owns it
-    //   if (usernameDoc.exists && usernameDoc.data()?.uid !== uid) {
-    //     return Promise.reject('Username unavailable')
-    //   }
-
-    //   return value
-    // },
-  },
-]
-
-const email: Rule = {
-  type: 'email',
-  message: 'Email is required',
-}
-
-const timestamp: Rule = {
-  type: 'object',
-  required: true,
-  fields: {
-    seconds: {
-      type: 'number',
-    },
-    nanoseconds: {
-      type: 'number',
-    },
-  },
-  message: 'timestamp field required',
-}
+/* Rules */
 
 const location: Rule = {
   type: 'object',
+  message: 'location field required',
   required: true,
   fields: {
     place_id: {
@@ -100,6 +57,20 @@ const location: Rule = {
       type: 'string',
       required: true,
     },
+    structured_formatting: {
+      type: 'object',
+      required: true,
+      fields: {
+        main_text: {
+          type: 'string',
+          required: true,
+        },
+        secondary_text: {
+          type: 'string',
+          required: true,
+        },
+      },
+    },
     latitude: {
       type: 'number',
       required: true,
@@ -109,11 +80,11 @@ const location: Rule = {
       required: true,
     },
   },
-  message: 'location field required',
 }
 
 const yelpParams: Rule = {
   type: 'object',
+  message: 'params field required',
   required: true,
   fields: {
     radius: {
@@ -128,8 +99,6 @@ const yelpParams: Rule = {
     },
     categories: {
       type: 'array',
-      // required: true,
-      // enum: [''],
       defaultField: {
         type: 'string',
       },
@@ -139,68 +108,121 @@ const yelpParams: Rule = {
       type: 'boolean',
     },
   },
-  message: 'params field required',
 }
 
-export default {
-  signUp: new Schema({
-    name: {
-      ...name,
-      required: true,
-    },
-    username: {
-      ...username,
-      required: true,
-    },
-    email: {
-      ...email,
-      required: true,
-    },
-    password: {
+/* Validation Schemas */
+
+export const updateUser = new ValidationSchema({
+  name: [
+    {
       type: 'string',
-      required: true,
-      pattern: /^[a-zA-Z0-9]{6,30}$/,
-      message: 'Password must be alphanumeric and 6-30 characters',
-    },
-  }),
-  updateUser: new Schema({
-    name,
-    username,
-    about: {
-      type: 'string',
-      max: 1000,
-      message: 'Your "About me" cannot be over 1000 charcters',
-    },
-  }),
-  updateParty: new Schema({
-    id: {
-      type: 'string',
-      required: true,
-      message: 'id required',
-    },
-    name,
-    admin: name,
-    members: {
-      type: 'array',
-      required: true,
-      min: 0,
-      defaultField: {
-        type: 'string',
+      message: 'Name must be between 1 and 30 characters',
+      min: 1,
+      max: 30,
+      transform(value?: string) {
+        return value?.trim()
       },
-      message: 'members field required',
     },
-    active: {
-      type: 'boolean',
+    {
+      message: 'A name is required',
+      validator(rule, value, cb, source, options) {
+        const o = options as ValidateOptions
+        return !!value || (!value && o.auth?.token.accessLevel === 1)
+      },
+    },
+  ],
+  username: [
+    {
+      type: 'string',
+      message: 'Name must be between 3 and 20 characters',
+      min: 3,
+      max: 20,
+      transform(value) {
+        return value?.trim()
+      },
+    },
+    {
+      message: 'Invalid username',
+      pattern: /^(?!\.\.?$)(?!.*__.*__)([^/]{3,20})$/,
+    },
+    {
+      async asyncValidator(rule, value, cb, source, options) {
+        const o = options as ValidateOptions
+
+        // Ensure username is required if user hasn't completed sign up process
+        if (!value && o.auth?.token.accessLevel !== 1) {
+          return Promise.reject('A username is required')
+        }
+
+        if (value) {
+          const usernameSnapshot = await refs.firestore.usernames.doc(value).get()
+          const usernameData = usernameSnapshot.data()
+          // If exists and is not this user's, someone else owns it
+          if (usernameData && usernameData.uid !== o.auth?.uid) {
+            return Promise.reject('Username unavailable')
+          }
+        }
+      },
+    },
+  ],
+  about: {
+    type: 'string',
+    message: 'About cannot be longer than 200 characters',
+    max: 200,
+    transform(value) {
+      return value?.trim()
+    },
+  },
+})
+
+// updateUser.messages({
+//   string: {
+//     range: '',
+//   },
+// })
+
+export const updateParty = new ValidationSchema({
+  id: {
+    type: 'string',
+    message: 'A party id is required',
+    required: true,
+  },
+  name: {
+    type: 'string',
+    message: 'Name must be between 1 and 30 characters',
+    min: 1,
+    max: 30,
+    transform(value) {
+      return value?.trim()
+    },
+  },
+  members: [
+    {
+      type: 'array',
+      defaultField: { type: 'string' },
+      message: 'Party members are required',
       required: true,
-      message: 'active field required',
+      transform(value: string[]) {
+        return [...new Set(value)].sort()
+      },
     },
-    location,
-    params: yelpParams,
-    lastActive: timestamp,
-    createdAt: timestamp,
-  }),
-  yelpParams: new Schema({
-    ...location.fields,
-    ...yelpParams.fields,
-  }),
-}
+    {
+      type: 'array',
+      message: 'Party members must be between 2 and 20 in length',
+      min: 2,
+      max: 20,
+    },
+  ],
+  location,
+  params: yelpParams,
+})
+
+export const getYelpBusinesses = new ValidationSchema({
+  ...location.fields,
+  ...yelpParams.fields,
+  offset: {
+    type: 'number',
+    message: 'Offset value field required',
+    required: true,
+  },
+})

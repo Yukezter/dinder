@@ -12,7 +12,7 @@ import {
   push,
 } from 'firebase/database'
 import { doc, setDoc } from 'firebase/firestore'
-import { auth, firestore, db } from '../app/firebase'
+import { auth, firestore, db } from '../firebase'
 
 export type AuthUser = User
 
@@ -35,14 +35,14 @@ export const AuthProvider: React.FC = ({ children }) => {
     hasCustomClaims.current = state?.claims?.accessLevel !== undefined
   }, [state?.claims?.accessLevel])
 
-  // Update auth state whenever user signs in / signs out
-  // Listen for metadata changes and update token
+  // Track the auth state and listen for metadata changes
+  // so that we can update the user's custom claims
   React.useEffect(() => {
     let metadataRef: DatabaseReference | null = null
     let callback: ((snapshot: DataSnapshot) => void) | null = null
 
     const unsubscribe = onAuthStateChanged(auth, user => {
-      console.log('onAuthStateChanged', user)
+      console.log('onAuthStateChanged:', user)
 
       if (metadataRef && callback) {
         off(metadataRef, 'value', callback)
@@ -51,20 +51,22 @@ export const AuthProvider: React.FC = ({ children }) => {
       if (user) {
         user.getIdTokenResult().then(({ claims }) => {
           setState({ user, claims })
-
-          console.log(claims)
+          console.log('claims:', claims)
 
           metadataRef = ref(db, `metadata/${user.uid}/refreshTime`)
-          let afterFirstCall = false
+          let isFirstCall = true
 
           callback = () => {
-            if ((claims?.accessLevel as number | undefined) !== 1) {
-              user.getIdTokenResult(true).then(({ claims }) => {
-                console.log(claims)
-                setState(prev => ({ ...prev, claims }))
-              })
+            if (!isFirstCall) {
+              if ((claims?.accessLevel as number | undefined) !== 1) {
+                user.getIdTokenResult(true).then(({ claims }) => {
+                  console.log('claims refresh:', claims)
+                  setState(prev => ({ ...prev, claims }))
+                })
+              }
             }
-            afterFirstCall = true
+
+            isFirstCall = false
           }
 
           onValue(metadataRef, callback)
@@ -77,46 +79,47 @@ export const AuthProvider: React.FC = ({ children }) => {
     return unsubscribe
   }, [])
 
-  // Online presence
+  // Manage the current user's online presence
   React.useEffect(() => {
     if (!state?.user) {
-      return undefined
+      return
     }
 
     const connectedRef = ref(db, '.info/connected')
     const connectionsRef = ref(db, `users/${state.user!.uid}/connections`)
     const lastOnlineRef = ref(db, `users/${state.user!.uid}/lastOnline`)
-    const path = `/status/${state.user!.uid}`
-    const userStatusFirestoreRef = doc(firestore, path)
+    const userStatusFirestoreRef = doc(firestore, `/status/${state.user!.uid}`)
 
     let afterFirstCall = false
 
     const unsubscribe = onValue(connectedRef, snapshot => {
       if (afterFirstCall) {
-        if (snapshot.val() === true) {
-          // Store device connection
-          const con = push(connectionsRef)
-
-          // Remove device upon disconnection
-          onDisconnect(con).remove()
-
-          // Add connection to list
-          set(con, true)
-
-          // Update the time this user was last online
-          onDisconnect(lastOnlineRef).set(serverDatabaseTimestamp())
-
-          // Update firestore online status
-          setDoc(userStatusFirestoreRef, {
-            state: 'online',
-          })
+        if (snapshot.val() === false) {
+          return
         }
+
+        // Store device connection
+        const con = push(connectionsRef)
+
+        // Remove device upon disconnection
+        onDisconnect(con).remove()
+
+        // Add connection to list
+        set(con, true)
+
+        // Update the time this user was last online
+        onDisconnect(lastOnlineRef).set(serverDatabaseTimestamp())
+
+        // Update firestore online status
+        setDoc(userStatusFirestoreRef, { state: 'online' })
       }
 
       afterFirstCall = true
     })
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+    }
   }, [state?.user])
 
   // Don't render until Firebase user is determined

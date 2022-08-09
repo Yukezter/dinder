@@ -9,7 +9,7 @@ export default React.forwardRef<HTMLButtonElement, LoadingButtonProps>(
         ref={ref}
         variant='contained'
         color='primary'
-        sx={[{ borderRadius: 6 }, ...(Array.isArray(sx) ? sx : [sx])]}
+        sx={[{ borderRadius: '28px' }, ...(Array.isArray(sx) ? sx : [sx])]}
         {...props}
       >
         {props.children}

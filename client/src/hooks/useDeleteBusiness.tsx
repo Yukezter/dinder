@@ -1,28 +1,38 @@
-import { useMutation, UseMutationOptions, useQueryClient } from 'react-query'
+import { QueryKey, useMutation, UseMutationOptions, useQueryClient } from 'react-query'
 
+import { Business } from '../types'
 import { UsersService } from '../services/users'
-import { useUser, Business } from '../context/FirestoreContext'
+import { userKeys } from '../utils/queryKeys'
 
-const useDeleteBusiness = (
-  options?: UseMutationOptions<void, unknown, Business>
-) => {
+type Context = { previousBusinesses: Business[]; queryKey: QueryKey }
+
+export const useDeleteBusiness = (options?: UseMutationOptions<void, unknown, string, Context>) => {
   const queryClient = useQueryClient()
-  const user = useUser()
-  return useMutation<void, unknown, Business>(
-    data => UsersService.deleteBusiness(user.uid, data.id),
-    {
-      onMutate(data) {
-        const oldData = queryClient.getQueryData<Business[]>('businesses')!
-        const newData = oldData.filter(({ id }) => id !== data.id)
-        queryClient.setQueryData<Business[]>('businesses', newData)
-      },
-      onError(error, data) {
-        const oldData = queryClient.getQueryData<Business[]>('businesses')!
-        const newData = [data, ...oldData]
-        queryClient.setQueryData<Business[]>('businesses', newData)
-      },
-    }
-  )
-}
 
-export default useDeleteBusiness
+  return useMutation<void, unknown, string, Context>(data => UsersService.deleteBusiness(data), {
+    onMutate: async data => {
+      const queryKey = userKeys.businesses.all()
+      await queryClient.cancelQueries(queryKey)
+
+      const previousBusinesses = queryClient.getQueryData<Business[]>(queryKey)
+      if (previousBusinesses) {
+        const newBusinesses = previousBusinesses.filter(business => business.details.id !== data)
+        queryClient.setQueryData<Business[]>(queryKey, newBusinesses)
+
+        return { previousBusinesses, queryKey }
+      }
+    },
+    onError: (error, data, context) => {
+      if (context) {
+        const { queryKey, previousBusinesses } = context
+        queryClient.setQueryData<Business[]>(queryKey, previousBusinesses)
+      }
+    },
+    onSettled: (data, error, variables, context) => {
+      if (context) {
+        queryClient.invalidateQueries(context.queryKey)
+      }
+    },
+    ...options,
+  })
+}

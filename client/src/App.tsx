@@ -2,36 +2,16 @@ import React from 'react'
 import CssBaseline from '@mui/material/CssBaseline'
 import GlobalStyles from '@mui/material/GlobalStyles'
 import { BrowserRouter } from 'react-router-dom'
-import {
-  QueryClientProvider,
-  QueryClient,
-  QueryFunction,
-  QueryCache,
-  MutationCache,
-} from 'react-query'
+import { QueryClientProvider, QueryClient, QueryCache, MutationCache } from 'react-query'
 import { ThemeProvider } from '@mui/material'
 import smoothscroll from 'smoothscroll-polyfill'
 
 import theme from './style/theme'
-import api from './app/api'
 import { AuthProvider } from './context/AuthContext'
 import Routes from './routes'
 
 // Polyfill for smooth scrolling
 smoothscroll.polyfill()
-
-const defaultQueryFn: QueryFunction = async ({ queryKey, signal }) => {
-  try {
-    const { data } = await api.cloud.get(queryKey[0] as string, {
-      signal,
-    })
-
-    return data
-  } catch (err) {
-    console.log(err)
-    throw err
-  }
-}
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -46,7 +26,6 @@ const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      queryFn: defaultQueryFn,
       retry: false,
       cacheTime: 0,
       staleTime: 0,
@@ -61,15 +40,23 @@ const App = () => {
   React.useEffect(() => {
     const setViewportProperty = (el: HTMLElement) => {
       let prevClientHeight: number
+      const minHeight = window.screen.availHeight - (window.outerHeight - window.innerHeight)
+      console.log(window.screen.availHeight, window.outerHeight, window.innerHeight)
+      el.style.setProperty('--app-height-min', `${minHeight}px`)
+
       const handleResize = () => {
         const clientHeight = window.innerHeight
         if (clientHeight === prevClientHeight) return
         requestAnimationFrame(() => {
-          el.style.setProperty('--app-height', `${window.innerHeight}px`)
+          el.style.setProperty('--app-height', `${clientHeight}px`)
+          const newMinHeight = window.screen.availHeight - (window.outerHeight - clientHeight)
+          el.style.setProperty('--app-height-min', `${newMinHeight}px`)
           prevClientHeight = clientHeight
         })
       }
+
       handleResize()
+
       return handleResize
     }
 
@@ -84,16 +71,23 @@ const App = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <GlobalStyles
+        styles={{
+          ':root': {
+            '--app-height': '100%',
+            '--app-height-max': '100%',
+          },
+          body: {
+            '& > div#root': {
+              display: 'flex',
+              minHeight: 'var(--app-height, 100vh)',
+            },
+          },
+        }}
+      />
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <GlobalStyles
-              styles={{
-                ':root': {
-                  '--app-height': '100%',
-                },
-              }}
-            />
             <Routes />
           </AuthProvider>
         </QueryClientProvider>
@@ -103,3 +97,16 @@ const App = () => {
 }
 
 export default App
+
+// const defaultQueryFn: QueryFunction = async ({ queryKey, signal }) => {
+//   try {
+//     const { data } = await api.cloud.get(queryKey[0] as string, {
+//       signal,
+//     })
+
+//     return data
+//   } catch (err) {
+//     console.log(err)
+//     throw err
+//   }
+// }

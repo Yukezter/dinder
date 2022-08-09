@@ -1,5 +1,6 @@
 import {
   setPersistence,
+  indexedDBLocalPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
   inMemoryPersistence,
@@ -15,9 +16,10 @@ import {
   updatePhoneNumber,
 } from 'firebase/auth'
 
-import { auth } from '../app/firebase'
+import { auth } from '../firebase'
 
 const persistenceTypes = {
+  // LOCAL: indexedDBLocalPersistence,
   LOCAL: browserLocalPersistence,
   SESSION: browserSessionPersistence,
   NONE: inMemoryPersistence,
@@ -28,23 +30,12 @@ export class AuthService {
     return setPersistence(auth, persistenceTypes[type])
   }
 
-  // static async signUp(data: any) {
-  //   const res = await api.cloud.post<{ result: string }>('/signUp', { data })
-  //   return res.data.result
-  // }
-
-  // static async signUp(data: any) {
-  //   const res = await httpsCallable<any, string>(functions, 'signUp')(data)
-  //   return res.data
-  // }
-
   static async signUp(email: string, password: string) {
     await createUserWithEmailAndPassword(auth, email, password)
   }
 
   static signIn(email: string, password: string) {
     return signInWithEmailAndPassword(auth, email, password)
-    // return createUserWithEmailAndPassword(auth, email, password)
   }
 
   static signInWithCustomToken(token: string) {
@@ -68,10 +59,7 @@ export class AuthService {
     return new RecaptchaVerifier(container, options, auth)
   }
 
-  static verifyPhoneNumber(
-    phoneNumber: string,
-    appVerifier: RecaptchaVerifier
-  ) {
+  static verifyPhoneNumber(phoneNumber: string, appVerifier: RecaptchaVerifier) {
     const provider = new PhoneAuthProvider(auth)
     return provider.verifyPhoneNumber(phoneNumber, appVerifier)
   }
@@ -81,15 +69,3 @@ export class AuthService {
     return updatePhoneNumber(auth.currentUser!, credential)
   }
 }
-
-// export default new AuthService()
-
-// signInWithGoogle() {
-//   const googleAuthProvider = new GoogleAuthProvider()
-//   return signInWithRedirect(auth, googleAuthProvider)
-// }
-
-// signInWithTwitter() {
-//   const twitterAuthProvider = new TwitterAuthProvider()
-//   return signInWithRedirect(auth, twitterAuthProvider)
-// }
