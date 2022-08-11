@@ -87,7 +87,7 @@ export const PopperMenu: React.FC<PopperMenuProps> = props => {
         placement='bottom-end'
         role={undefined}
         // disablePortal
-        keepMounted
+        // keepMounted
         transition
         style={{ zIndex: theme.zIndex.modal }}
       >

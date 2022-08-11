@@ -39,18 +39,21 @@ const queryClient = new QueryClient({
 const App = () => {
   React.useEffect(() => {
     const setViewportProperty = (el: HTMLElement) => {
-      let prevClientHeight: number
       const minHeight = window.screen.availHeight - (window.outerHeight - window.innerHeight)
-      console.log(window.screen.availHeight, window.outerHeight, window.innerHeight)
       el.style.setProperty('--app-height-min', `${minHeight}px`)
+
+      let prevClientHeight: number
 
       const handleResize = () => {
         const clientHeight = window.innerHeight
         if (clientHeight === prevClientHeight) return
+
         requestAnimationFrame(() => {
           el.style.setProperty('--app-height', `${clientHeight}px`)
+
           const newMinHeight = window.screen.availHeight - (window.outerHeight - clientHeight)
           el.style.setProperty('--app-height-min', `${newMinHeight}px`)
+
           prevClientHeight = clientHeight
         })
       }
@@ -80,7 +83,8 @@ const App = () => {
           body: {
             '& > div#root': {
               display: 'flex',
-              minHeight: 'var(--app-height, 100vh)',
+              // minHeight: 'var(--app-height, 100vh)',
+              minHeight: 'var(--app-height-min, 100vh)',
             },
           },
         }}

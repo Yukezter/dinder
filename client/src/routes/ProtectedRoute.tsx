@@ -15,7 +15,7 @@ import {
   UIContextProvider,
 } from '../context'
 import { AccountSetupDialog, ProfileDialog, PartySettingsDrawer } from '../components'
-import { Layout } from '../pages'
+import { PrivateLayout } from '../layouts/PrivateLayout'
 
 const globalStyles: GlobalStylesProps['styles'] = {
   body: {
@@ -25,7 +25,7 @@ const globalStyles: GlobalStylesProps['styles'] = {
 
 const googleApiLibraries: LoadScriptProps['libraries'] = ['places']
 
-const IndeterminateLoader: React.FC = ({ children }) => {
+const LoadRequiredContexts: React.FC = ({ children }) => {
   const user = useUser()
   const parties = useParties()
   const googleMapsScript = useJsApiLoader({
@@ -62,17 +62,17 @@ const ProtectedRoute: React.FC = props => {
       <PartiesProvider id={auth.user.uid}>
         <PresenceProvider>
           <GlobalStyles styles={globalStyles} />
-          <IndeterminateLoader>
+          <LoadRequiredContexts>
             <SnackbarProvider>
               <UIContextProvider>
                 <ProfileDialog />
                 <PartySettingsDrawer />
-                <Layout>
+                <PrivateLayout>
                   <Outlet context={{ auth }} />
-                </Layout>
+                </PrivateLayout>
               </UIContextProvider>
             </SnackbarProvider>
-          </IndeterminateLoader>
+          </LoadRequiredContexts>
         </PresenceProvider>
       </PartiesProvider>
     </UserProvider>

@@ -2,7 +2,7 @@ import React from 'react'
 // import { useIsMutating } from 'react-query'
 import debounce from 'lodash.debounce'
 
-import { Business, BusinessData } from '../../types'
+import { BusinessData } from '../../types'
 import { useGetBusinesses } from '../../hooks/useGetBusinesses'
 import { useAddBusiness } from '../../hooks/useAddBusiness'
 import { useDeleteBusiness } from '../../hooks/useDeleteBusiness'
@@ -13,41 +13,24 @@ export const useToggleBusiness = (currentBusiness?: BusinessData) => {
   const addBusiness = useAddBusiness({ mutationKey })
   const deleteBusiness = useDeleteBusiness({ mutationKey })
 
-  const getBusinessType = React.useCallback(
-    (businesses?: Business[]) => {
-      if (!businesses) {
-        return null
-      }
-
-      const business = businesses.find(business => {
-        return business.details.id === currentBusiness?.id
-      })
-
-      return business ? business.type : null
-    },
-    [currentBusiness?.id]
-  )
-
   const typeFromCache = React.useMemo(() => {
-    return getBusinessType(businessesQuery.data)
-  }, [currentBusiness?.id, businessesQuery.data])
+    const business = businessesQuery.data?.find(business => {
+      return business.details.id === currentBusiness?.id
+    })
+
+    return business ? business.type : null
+  }, [businessesQuery.data, currentBusiness?.id])
 
   const typeFromCacheRef = React.useRef(typeFromCache)
   typeFromCacheRef.current = typeFromCache
 
   const [optimisticType, setOptimisticType] = React.useState(typeFromCache)
-  const isDebouncingRef = React.useRef(false)
-
-  React.useEffect(() => {
-    // console.log(isDebouncingRef.current, typeFromCache, currentBusiness?.id)
-    if (!isDebouncingRef.current) {
-      setOptimisticType(typeFromCache)
-    }
-  }, [currentBusiness?.id])
-
   const optimisticTypeRef = React.useRef(optimisticType)
   optimisticTypeRef.current = optimisticType
 
+  const isDebouncingRef = React.useRef(false)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedMutate = React.useCallback(
     debounce((business: BusinessData) => {
       isDebouncingRef.current = false
@@ -71,11 +54,16 @@ export const useToggleBusiness = (currentBusiness?: BusinessData) => {
   )
 
   React.useEffect(() => {
+    console.log({ typeFromCache })
+
+    if (!isDebouncingRef.current) {
+      setOptimisticType(typeFromCache)
+    }
+
     return () => {
-      // console.log('flushed!')
       debouncedMutate.flush()
     }
-  }, [currentBusiness?.id])
+  }, [debouncedMutate, typeFromCache])
 
   const optimisticMutate = React.useCallback(
     (type: 'favorite' | 'block' | null) => {
@@ -85,7 +73,7 @@ export const useToggleBusiness = (currentBusiness?: BusinessData) => {
         debouncedMutate(currentBusiness)
       }
     },
-    [currentBusiness]
+    [debouncedMutate, currentBusiness]
   )
 
   const result = React.useMemo(() => {

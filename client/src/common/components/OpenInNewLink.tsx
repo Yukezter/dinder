@@ -15,7 +15,7 @@ const OpenInNewLink: React.FC<LinkProps> = props => {
       borderRadius='50%'
       sx={[
         theme => ({
-          background: theme.palette.primary.main,
+          // background: theme.palette.primary.main,
           color: theme.palette.background.paper,
         }),
         ...(Array.isArray(sx) ? sx : [sx]),

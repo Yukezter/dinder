@@ -1,9 +1,5 @@
 import React from 'react'
-import {
-  Link as RouterLink,
-  LinkProps as RouterLinkProps,
-  To,
-} from 'react-router-dom'
+import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom'
 import Button, { ButtonProps } from '@mui/material/Button'
 
 const LinkBehavior = React.forwardRef<

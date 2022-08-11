@@ -17,7 +17,7 @@ export const BrandNameLink = ({ to = '/dashboard', ...props }: Partial<LinkProps
       {...props}
     >
       <span>Dinder</span>
-      <LocalDiningTwoToneIcon fontSize='inherit' sx={{ ml: 0.25 }} />
+      <LocalDiningTwoToneIcon sx={{ ml: 0.25 }} />
     </Link>
   )
 }

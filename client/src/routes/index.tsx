@@ -2,8 +2,11 @@ import { RouteObject, useRoutes, Navigate } from 'react-router-dom'
 
 import ProtectedRoute from './ProtectedRoute'
 import ProtectedPartyRoute from './ProtectedPartyRoute'
+import { PublicLayout } from '../layouts/PublicLayout'
 import {
   Landing,
+  SignUp,
+  SignIn,
   Dashboard,
   Party,
   Settings,
@@ -17,8 +20,22 @@ import {
 const Routes = () => {
   const routes: RouteObject[] = [
     {
-      path: '/',
-      element: <Landing />,
+      path: '/*',
+      element: <PublicLayout />,
+      children: [
+        {
+          index: true,
+          element: <Landing />,
+        },
+        {
+          path: 'signup',
+          element: <SignUp />,
+        },
+        {
+          path: 'login',
+          element: <SignIn />,
+        },
+      ],
     },
     {
       path: '/*',
@@ -42,6 +59,10 @@ const Routes = () => {
             {
               path: 'settings/password',
               element: <PasswordSettings />,
+            },
+            {
+              path: 'settings/notifications',
+              element: <div>Coming soon!</div>,
             },
           ],
         },

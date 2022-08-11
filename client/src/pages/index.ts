@@ -1,5 +1,6 @@
 export * from './Landing'
-export * from './Layout'
+export * from './SignUp'
+export * from './SignIn'
 export * from './Dashboard'
 export * from './Settings'
 export * from './Party'

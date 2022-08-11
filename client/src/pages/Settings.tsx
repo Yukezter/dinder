@@ -83,23 +83,49 @@ const SettingsTextField = React.forwardRef<HTMLDivElement, TextFieldProps>((prop
 //   )
 // })
 
+type MutationContext = { snackbarKey: SnackbarKey }
+
 export const GeneralSettings: React.FC = () => {
   const user = useUser()
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar()
   const form = useForm<GeneralSettingsInputs>()
   const [total, setTotal] = React.useState(0)
 
-  const mutation = useMutation<void, ClientError<GeneralSettingsInputs>, GeneralSettingsInputs>(
-    data => UsersService.updateUser(data),
-    {
-      onError: error => {
-        if (error.details?.type === 'validation') {
-          error.details.errors.forEach(({ field, message }) => {
-            form.setError(field, { message })
-          })
-        }
-      },
-    }
-  )
+  const mutation = useMutation<
+    void,
+    ClientError<GeneralSettingsInputs>,
+    GeneralSettingsInputs,
+    MutationContext
+  >(data => UsersService.updateUser(data), {
+    onMutate: () => {
+      const snackbarKey = enqueueSnackbar({
+        persist: true,
+        message: 'Updating general settings...',
+      })
+
+      return { snackbarKey }
+    },
+    onSuccess: (data, variables, context) => {
+      closeSnackbar(context.snackbarKey)
+      enqueueSnackbar({
+        variant: 'success',
+        message: 'Successfully updated general settings!',
+      })
+    },
+    onError: (error, _, context) => {
+      if (error.details?.type === 'validation') {
+        error.details.errors.forEach(({ field, message }) => {
+          form.setError(field, { message })
+        })
+      }
+
+      closeSnackbar(context?.snackbarKey)
+      enqueueSnackbar({
+        variant: 'error',
+        message: 'Oops! Unable to update general settings',
+      })
+    },
+  })
 
   const onSubmit: SubmitHandler<GeneralSettingsInputs> = data => {
     mutation.mutate(data)
@@ -165,10 +191,11 @@ type VerificationCodeDialogProps = {
 
 const VerificationCodeDialog: React.FC<VerificationCodeDialogProps> = props => {
   const { auth, verificationId, handleClose } = props
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar()
   const form = useForm<VerificationCodeInput>()
   const { formState } = form
 
-  const mutation = useMutation<void, AuthError, VerificationCodeInput>(
+  const mutation = useMutation<void, AuthError, VerificationCodeInput, MutationContext>(
     ({ verificationCode }) => AuthService.updatePhoneNumber(verificationId!, verificationCode),
     {
       onSuccess() {
@@ -215,6 +242,7 @@ type PersonalSettingsInputs = {
 
 export const PersonalSettings = () => {
   const context = useOutletContext<SettingsContext>()
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar()
   const form = useForm<PersonalSettingsInputs>()
   const { formState } = form
 
@@ -228,7 +256,7 @@ export const PersonalSettings = () => {
     appVerifierRef.current = appVerifier
   }, [])
 
-  const mutation = useMutation<void, AuthError, PersonalSettingsInputs>(
+  const mutation = useMutation<void, AuthError, PersonalSettingsInputs, MutationContext>(
     async ({ email, phoneNumber }) => {
       await AuthService.updateEmail(email)
       if (phoneNumber && appVerifierRef.current) {
@@ -240,7 +268,28 @@ export const PersonalSettings = () => {
       }
     },
     {
-      onError(error) {
+      onMutate: () => {
+        const snackbarKey = enqueueSnackbar({
+          persist: true,
+          message: 'Updating personal settings...',
+        })
+
+        return { snackbarKey }
+      },
+      onSuccess: (data, variables, context) => {
+        closeSnackbar(context.snackbarKey)
+        enqueueSnackbar({
+          variant: 'success',
+          message: 'Successfully updated general settings!',
+        })
+      },
+      onError: (error, variables, context) => {
+        closeSnackbar(context?.snackbarKey)
+        enqueueSnackbar({
+          variant: 'error',
+          message: 'Oops! Unable to update general settings',
+        })
+
         console.log(error.code, error.message)
       },
     }
@@ -298,13 +347,35 @@ type PasswordSettingsInputs = {
 }
 
 export const PasswordSettings: React.FC = () => {
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar()
   const form = useForm<PasswordSettingsInputs>()
   const { formState } = form
 
-  const mutation = useMutation<void, AuthError, PasswordSettingsInputs>(
+  const mutation = useMutation<void, AuthError, PasswordSettingsInputs, MutationContext>(
     ({ newPassword }) => AuthService.updatePassword(newPassword),
     {
-      onError(error) {
+      onMutate: () => {
+        const snackbarKey = enqueueSnackbar({
+          persist: true,
+          message: 'Updating your password...',
+        })
+
+        return { snackbarKey }
+      },
+      onSuccess: (data, variables, context) => {
+        closeSnackbar(context.snackbarKey)
+        enqueueSnackbar({
+          variant: 'success',
+          message: 'Successfully updated your password!',
+        })
+      },
+      onError: (error, variables, context) => {
+        closeSnackbar(context?.snackbarKey)
+        enqueueSnackbar({
+          variant: 'error',
+          message: 'Oops! Unable to update your password',
+        })
+
         console.log(error.code, error.message)
       },
     }
@@ -346,28 +417,25 @@ const ProfilePhotoSettings: React.FC = () => {
   const { enqueueSnackbar, closeSnackbar } = useSnackbar()
   const user = useUser()
 
-  const mutation = useMutation<UploadResult, FirebaseError, File, { snackbarKey: SnackbarKey }>(
+  const mutation = useMutation<UploadResult, FirebaseError, File, MutationContext>(
     file => UsersService.setProfilePhoto(user.uid, file),
     {
-      onMutate() {
+      onMutate: () => {
         const snackbarKey = enqueueSnackbar('Updating profile picture...', {
-          preventDuplicate: true,
           persist: true,
         })
 
         return { snackbarKey }
       },
-      onSuccess(data, variables, context) {
+      onSuccess: (data, variables, context) => {
         closeSnackbar(context?.snackbarKey)
         enqueueSnackbar('Profile picture updated!', {
-          preventDuplicate: true,
           variant: 'success',
         })
       },
-      onError(error, variables, context) {
+      onError: (error, variables, context) => {
         closeSnackbar(context?.snackbarKey)
-        enqueueSnackbar('Failed to update profile picture!', {
-          preventDuplicate: true,
+        enqueueSnackbar('Unable to update profile picture!', {
           variant: 'error',
         })
 
@@ -590,24 +658,6 @@ const Root = styled(Container)(({ theme }) => ({
 
 export const Settings: React.FC = () => {
   const { auth } = useOutletContext<{ auth: Required<IAuthContext> }>()
-  const { enqueueSnackbar, closeSnackbar } = useSnackbar()
-  const snackbarKey = React.useRef<SnackbarKey>()
-
-  React.useEffect(() => {
-    if (auth.claims?.accessLevel !== 1) {
-      snackbarKey.current = enqueueSnackbar(
-        'You must submit a name AND username in order to continue!',
-        {
-          preventDuplicate: true,
-          variant: 'warning',
-          persist: true,
-        }
-      )
-    } else if (snackbarKey.current) {
-      closeSnackbar(snackbarKey.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.claims?.accessLevel])
 
   return (
     <Root maxWidth='md' sx={{ pt: 5 }}>

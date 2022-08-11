@@ -1,7 +1,7 @@
 import React from 'react'
 import produce, { Draft } from 'immer'
 
-import { User, PopulatedParty, Party } from '../types'
+import { User, PopulatedParty } from '../types'
 
 interface UIState {
   isContactsMenuOpen: boolean
@@ -132,11 +132,7 @@ export const UIContextProvider: React.FC = ({ children }) => {
       },
     }),
     [
-      state.isContactsMenuOpen,
-      state.profileOwner,
-      state.isProfileDialogOpen,
-      state.isPartySettingsOpen,
-      state.settings,
+      state,
       toggleContactsMenu,
       closeContactsMenu,
       openProfileDialog,

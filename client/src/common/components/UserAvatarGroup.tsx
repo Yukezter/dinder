@@ -1,20 +1,18 @@
 import React from 'react'
 import AvatarGroup, { AvatarGroupProps } from '@mui/material/AvatarGroup'
-// import Avatar from '@mui/material/Avatar'
 import Popover from '@mui/material/Popover'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-// import Skeleton from '@mui/material/Skeleton'
 
 import { User } from '../../types'
-import Avatar from './Avatar'
+import { UserAvatar } from './UserAvatar'
 
-interface CustomAvatarGroupProps extends AvatarGroupProps {
+export interface UserAvatarGroupProps extends AvatarGroupProps {
   disablePopover?: boolean
   users?: User[]
 }
 
-const CustomAvatarGroup: React.FC<CustomAvatarGroupProps> = ({
+export const UserAvatarGroup: React.FC<UserAvatarGroupProps> = ({
   disablePopover = false,
   users,
   sx = [],
@@ -54,8 +52,8 @@ const CustomAvatarGroup: React.FC<CustomAvatarGroupProps> = ({
         {...props}
       >
         {!users
-          ? Array.from(Array(3)).map((_, index) => <Avatar key={index} />)
-          : users.map(({ uid, photoURL }) => <Avatar key={uid} src={photoURL} />)}
+          ? Array.from(Array(3)).map((_, index) => <UserAvatar key={index} />)
+          : users.map(({ uid, photoURL }) => <UserAvatar key={uid} src={photoURL} />)}
       </AvatarGroup>
       {hasPopover && (
         <Popover
@@ -87,5 +85,3 @@ const CustomAvatarGroup: React.FC<CustomAvatarGroupProps> = ({
     </>
   )
 }
-
-export default CustomAvatarGroup

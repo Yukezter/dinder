@@ -54,19 +54,19 @@ export const AuthProvider: React.FC = ({ children }) => {
           console.log('claims:', claims)
 
           metadataRef = ref(db, `metadata/${user.uid}/refreshTime`)
-          let isFirstCall = true
+          // let isFirstCall = true
 
           callback = () => {
-            if (!isFirstCall) {
-              if ((claims?.accessLevel as number | undefined) !== 1) {
-                user.getIdTokenResult(true).then(({ claims }) => {
-                  console.log('claims refresh:', claims)
-                  setState(prev => ({ ...prev, claims }))
-                })
-              }
+            // if (!isFirstCall) {
+            if ((claims?.accessLevel as number | undefined) !== 1) {
+              user.getIdTokenResult(true).then(({ claims }) => {
+                console.log('claims refresh:', claims)
+                setState(prev => ({ ...prev, claims }))
+              })
             }
 
-            isFirstCall = false
+            // isFirstCall = false
+            // }
           }
 
           onValue(metadataRef, callback)

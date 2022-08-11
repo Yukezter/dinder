@@ -17,8 +17,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import { User, UpdatePartyFields } from '../../types'
 import { useUser } from '../../context'
 import { useGetContacts } from '../../hooks'
-import { TextField, IconButton, PopperMenu } from '../../common/components'
-import { noop } from 'react-query/types/core/utils'
+import { TextField, PopperMenu } from '../../common/components'
 
 type FilterType = 'none' | 'contacts'
 
@@ -65,7 +64,7 @@ const MembersSelect = React.forwardRef<HTMLInputElement, MembersSelectProps>((pr
 
   const noOptions = React.useMemo(() => {
     return results && results.nbHits === 0
-  }, [results?.nbHits])
+  }, [results])
 
   React.useEffect(() => {
     setIsLoading(false)
@@ -161,11 +160,8 @@ const MembersSelect = React.forwardRef<HTMLInputElement, MembersSelectProps>((pr
               notched: true,
               endAdornment: (
                 <>
-                  {isLoading ? (
-                    <CircularProgress size={26} sx={{ p: 0.5 }} />
-                  ) : (
-                    params.InputProps.endAdornment
-                  )}
+                  {isLoading && <CircularProgress size={26} sx={{ p: 0.5 }} />}
+                  {params.InputProps.endAdornment}
                 </>
               ),
             }}

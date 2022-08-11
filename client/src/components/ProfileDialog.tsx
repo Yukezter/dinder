@@ -18,22 +18,17 @@ import CircularProgress from '@mui/material/CircularProgress'
 import { User, Contacts } from '../types'
 import { useUIContext, IUIContext, useUser } from '../context'
 import { useGetContacts, useAddContact, useDeleteContact, useBlockUser } from '../hooks'
-import { Avatar, Button, IconButton } from '../common/components'
+import { UserAvatar, Button, IconButton } from '../common/components'
 
 type ContactsQueryResult = Omit<UseQueryResult<Contacts, unknown>, 'data'> & { data: Contacts }
-type ContactState = 'added' | 'blocked' | null
-type OptimisticContacts = { [id: string]: ContactState }
 type MutationType = 'add' | 'delete' | 'block' | 'unblock'
 type ProfileProps = {
   ui: IUIContext
   contacts: ContactsQueryResult
-  optimisticContacts: OptimisticContacts
-  addOptimisticContact: (id: string, type: ContactState) => void
-  removeOptimisticContact: (id: string) => void
 }
 
 const Profile: React.FC<ProfileProps> = props => {
-  const { ui, contacts, optimisticContacts, addOptimisticContact, removeOptimisticContact } = props
+  const { ui, contacts } = props
   const owner = ui.profile.owner as User
   const user = useUser()
   const addContact = useAddContact()
@@ -50,7 +45,7 @@ const Profile: React.FC<ProfileProps> = props => {
     [owner.uid]
   )
 
-  const stateFromCache = React.useMemo(() => {
+  const cachedRelationship = React.useMemo(() => {
     if (hasUser(contacts.data.added)) {
       return 'added'
     }
@@ -62,49 +57,59 @@ const Profile: React.FC<ProfileProps> = props => {
     return null
   }, [hasUser, contacts.data])
 
-  const stateFromCacheRef = React.useRef(stateFromCache)
-  stateFromCacheRef.current = stateFromCache
+  const cachedRelationshipRef = React.useRef(cachedRelationship)
+  cachedRelationshipRef.current = cachedRelationship
 
-  const state = React.useMemo(() => {
-    if (optimisticContacts[owner.uid] !== undefined) {
-      return optimisticContacts[owner.uid]
-    }
+  const [optimisticRelationship, setOptimisticRelationship] = React.useState(cachedRelationship)
+  const optimisticRelationshipRef = React.useRef(optimisticRelationship)
+  optimisticRelationshipRef.current = optimisticRelationship
 
-    return stateFromCache
-  }, [optimisticContacts, owner.uid, stateFromCache])
+  const isDebouncingRef = React.useRef(false)
 
-  const stateRef = React.useRef(state)
-  stateRef.current = state
-
-  const debouncedMutation = React.useCallback(
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedMutate = React.useCallback(
     debounce((type: MutationType) => {
-      if (stateRef.current !== stateFromCacheRef.current) {
-        if (type === 'add') {
-          console.log('adding contact...')
-          addContact.mutate(owner)
-        } else if (type === 'delete') {
-          console.log('deleting contact...')
-          deleteContact.mutate(owner)
-        } else if (type === 'block') {
-          console.log('blocking contact...')
-          blockContact.mutate(owner)
-        } else if (type === 'unblock') {
-          console.log('unblocking contact...')
-        }
+      isDebouncingRef.current = false
+
+      if (optimisticRelationshipRef.current === cachedRelationshipRef.current) {
+        return
       }
 
-      removeOptimisticContact(owner.uid)
+      if (type === 'add') {
+        console.log('adding contact...')
+        addContact.mutate(owner)
+      } else if (type === 'delete') {
+        console.log('deleting contact...')
+        deleteContact.mutate(owner)
+      } else if (type === 'block') {
+        console.log('blocking contact...')
+        blockContact.mutate(owner)
+      } else if (type === 'unblock') {
+        console.log('unblocking contact...')
+      }
     }, 3000),
     []
   )
 
+  React.useEffect(() => {
+    if (!isDebouncingRef.current) {
+      setOptimisticRelationship(cachedRelationship)
+    }
+
+    return () => {
+      debouncedMutate.flush()
+    }
+  }, [debouncedMutate, cachedRelationship])
+
   const mutate = React.useCallback(
     (type: MutationType) => {
       const newType = type === 'add' ? 'added' : type === 'block' ? 'blocked' : null
-      addOptimisticContact(owner.uid, newType)
-      debouncedMutation(type)
+      setOptimisticRelationship(newType)
+
+      isDebouncingRef.current = true
+      debouncedMutate(type)
     },
-    [owner.uid, addOptimisticContact, debouncedMutation]
+    [debouncedMutate]
   )
 
   const handleStartParty = () => {
@@ -116,6 +121,9 @@ const Profile: React.FC<ProfileProps> = props => {
     ui.profile.close()
     navigate('settings/general')
   }
+
+  const isAdded = optimisticRelationship === 'added'
+  const isBlocked = optimisticRelationship === 'blocked'
 
   return (
     <>
@@ -131,7 +139,7 @@ const Profile: React.FC<ProfileProps> = props => {
           )}
         </Box>
         <Box mx='auto' mb={3}>
-          <Avatar
+          <UserAvatar
             isLoading={contacts.isLoading}
             src={owner.photoURL}
             id={owner.uid}
@@ -157,25 +165,25 @@ const Profile: React.FC<ProfileProps> = props => {
               aria-label='start-party'
               color='primary'
               onClick={handleStartParty}
-              disabled={state === 'blocked'}
+              disabled={isBlocked}
             >
               <LocalDiningTwoToneIcon />
             </IconButton>
             <IconButton
-              aria-label={state === 'added' ? 'delete-contact' : 'add-contact'}
+              aria-label={isAdded ? 'delete-contact' : 'add-contact'}
               color='primary'
-              onClick={() => mutate(state === 'added' ? 'delete' : 'add')}
+              onClick={() => mutate(isAdded ? 'delete' : 'add')}
               disabled={contacts.isLoading}
             >
-              {state === 'added' ? <RemoveIcon /> : <AddIcon />}
+              {isAdded ? <RemoveIcon /> : <AddIcon />}
             </IconButton>
             <IconButton
-              aria-label={state === 'blocked' ? 'unblock-contact' : 'block-contact'}
-              color={state === 'blocked' ? 'success' : 'error'}
-              onClick={() => mutate(state === 'blocked' ? 'unblock' : 'block')}
+              aria-label={isBlocked ? 'unblock-contact' : 'block-contact'}
+              color={isBlocked ? 'success' : 'error'}
+              onClick={() => mutate(isBlocked ? 'unblock' : 'block')}
               disabled={contacts.isLoading}
             >
-              {state === 'blocked' ? <UnblockIcon /> : <BlockIcon />}
+              {isBlocked ? <UnblockIcon /> : <BlockIcon />}
             </IconButton>
           </Box>
         </>
@@ -200,22 +208,6 @@ type ProfileDialogProps = {}
 export const ProfileDialog: React.FC<ProfileDialogProps> = props => {
   const ui = useUIContext()
   const contacts = useGetContacts()
-  const [optimisticContacts, setOptimisticContacts] = React.useState<OptimisticContacts>({})
-
-  const addOptimisticContact = React.useCallback((id: string, type: ContactState) => {
-    setOptimisticContacts(prevOptimisticContacts => ({
-      ...prevOptimisticContacts,
-      [id]: type,
-    }))
-  }, [])
-
-  const removeOptimisticContact = React.useCallback((id: string) => {
-    setOptimisticContacts(prevOptimisticContacts => {
-      const newOptimisticContacts = { ...prevOptimisticContacts }
-      delete newOptimisticContacts[id]
-      return newOptimisticContacts
-    })
-  }, [])
 
   return (
     <Dialog
@@ -230,7 +222,6 @@ export const ProfileDialog: React.FC<ProfileDialogProps> = props => {
           flexDirection: 'column',
           alignItems: 'center',
           minHeight: 420,
-          maxHeight: 460,
           width: '100%',
           maxWidth: 340,
           px: 4,
@@ -241,13 +232,7 @@ export const ProfileDialog: React.FC<ProfileDialogProps> = props => {
       {contacts.isLoading ? (
         <CircularProgress sx={{ m: 'auto' }} />
       ) : (
-        <Profile
-          ui={ui}
-          contacts={contacts as ContactsQueryResult}
-          optimisticContacts={optimisticContacts}
-          addOptimisticContact={addOptimisticContact}
-          removeOptimisticContact={removeOptimisticContact}
-        />
+        <Profile ui={ui} contacts={contacts as ContactsQueryResult} />
       )}
     </Dialog>
   )

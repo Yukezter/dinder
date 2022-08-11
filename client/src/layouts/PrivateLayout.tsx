@@ -1,13 +1,13 @@
 import React from 'react'
 import debounce from 'lodash.debounce'
 import { useNavigate, useLocation, matchPath } from 'react-router-dom'
-import { useIsMutating } from 'react-query'
+// import { useIsMutating } from 'react-query'
 import { useSearchBox, useConfigure, useHits, Highlight } from 'react-instantsearch-hooks-web'
 import { Theme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import useAutocomplete from '@mui/material/useAutocomplete'
 import Box, { BoxProps } from '@mui/material/Box'
-import Stack from '@mui/material/Stack'
+// import Stack from '@mui/material/Stack'
 import Skeleton from '@mui/material/Skeleton'
 import MenuList from '@mui/material/MenuList'
 import MenuItem from '@mui/material/MenuItem'
@@ -15,7 +15,7 @@ import Drawer from '@mui/material/Drawer'
 import List from '@mui/material/List'
 import Toolbar from '@mui/material/Toolbar'
 import Container from '@mui/material/Container'
-import Typography from '@mui/material/Typography'
+// import Typography from '@mui/material/Typography'
 import Hidden from '@mui/material/Hidden'
 import Divider from '@mui/material/Divider'
 import GroupIcon from '@mui/icons-material/Group'
@@ -34,7 +34,7 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import SettingsIcon from '@mui/icons-material/Settings'
 import ContactPageIcon from '@mui/icons-material/ContactPage'
 import NoContactsIcon from '@mui/icons-material/ImportContacts'
-import DeleteIcon from '@mui/icons-material/Delete'
+// import DeleteIcon from '@mui/icons-material/Delete'
 
 import { User } from '../types'
 import { AuthService } from '../services/auth'
@@ -46,6 +46,7 @@ import {
   BrandNameLink,
   TextField,
   Avatar,
+  UserAvatar,
   PopperMenu,
   NoData,
 } from '../common/components'
@@ -132,7 +133,7 @@ const ListItemUser: React.FC<ListItemUserProps> = React.memo(props => {
         ]}
       >
         <ListItemAvatar>
-          <Avatar isLoading={!user} id={user?.uid} alt={user?.name} src={user?.photoURL} />
+          <UserAvatar isLoading={!user} id={user?.uid} alt={user?.name} src={user?.photoURL} />
         </ListItemAvatar>
         <ListItemText
           {...ListItemTextProps}
@@ -168,9 +169,6 @@ const ContactsList = () => {
           sx={{
             lineHeight: 'normal',
             py: 0.5,
-            // background: 'background.gradient',
-            // color: 'inherit',
-            // borderRadius: 1,
           }}
         >
           CONTACTS
@@ -181,13 +179,7 @@ const ContactsList = () => {
         <ListItemUser
           key={contact?.uid || index}
           user={contact}
-          // dividerTop={index === 0}
           secondaryAction={contact && <ContactPopperMenu contact={contact} />}
-          // secondaryAction={
-          //   <IconButton>
-          //     <DeleteIcon />
-          //   </IconButton>
-          // }
           ListItemButtonProps={{ onClick: () => ui.profile.open(contact) }}
           ListItemTextProps={{ sx: { mr: 1.5 } }}
         />
@@ -242,7 +234,7 @@ const ContactsAutocomplete: React.FC<BoxProps> = props => {
 
   const noResults = React.useMemo(() => {
     return results && results.nbHits === 0
-  }, [results?.nbHits])
+  }, [results])
 
   const {
     getRootProps,
@@ -292,7 +284,6 @@ const ContactsAutocomplete: React.FC<BoxProps> = props => {
           {...getOptionProps({ option, index })}
           key={option.uid}
           user={option}
-          // dividerTop={index === 0}
           ListItemTextProps={{
             primary: <Highlight hit={option} attribute='name' highlightedTagName='strong' />,
             secondary: <Highlight hit={option} attribute='username' highlightedTagName='strong' />,
@@ -377,6 +368,7 @@ const ContactsDrawer: React.FC = props => {
 
   React.useEffect(() => {
     ui.contacts.close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location])
 
   return (
@@ -507,19 +499,11 @@ const DashboardHeader: React.FC = () => {
   )
 }
 
-export const Layout: React.FC = props => {
+export const PrivateLayout: React.FC = props => {
   const { children } = props
 
   return (
-    <Box
-      // minHeight={{ xs: 'var(--app-height, 100vh)', md: 'var(--app-height-min, 100vh)' }}
-      minHeight={{ md: 'var(--app-height-min, 100vh)' }}
-      height='var(--app-height, 100vh)'
-      width='100%'
-      ml='auto'
-      position='relative'
-      display='flex'
-    >
+    <Box flex={1} width='100%' ml='auto' position='relative' display='flex'>
       <ContactsDrawer />
       <DashboardHeader />
       <Container
@@ -533,7 +517,6 @@ export const Layout: React.FC = props => {
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
-          // flexShrink: 0,
         })}
       >
         <Toolbar sx={{ mb: { xs: 1.5, md: 3 } }} />

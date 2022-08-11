@@ -1,8 +1,7 @@
 import React from 'react'
-import { useNavigate, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { ref, onValue, push, set, onDisconnect, remove, ThenableReference } from 'firebase/database'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
-import { GoogleMap, Circle, Marker } from '@react-google-maps/api'
 import {
   motion,
   useMotionValue,
@@ -12,10 +11,10 @@ import {
   PanInfo,
   AnimationProps,
 } from 'framer-motion'
-import JSConfetti from 'js-confetti'
+// import JSConfetti from 'js-confetti'
 import type { Theme } from '@mui/material'
-import styled from '@mui/material/styles/styled'
-import useTheme from '@mui/material/styles/useTheme'
+// import styled from '@mui/material/styles/styled'
+import { alpha } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
@@ -30,6 +29,7 @@ import Hidden from '@mui/material/Hidden'
 import CardMedia from '@mui/material/CardMedia'
 import { IconButtonProps } from '@mui/material/IconButton'
 import List from '@mui/material/List'
+import ListSubheader from '@mui/material/ListSubheader'
 // import MenuList from '@mui/material/MenuList'
 // import MenuItem from '@mui/material/MenuItem'
 import Chip from '@mui/material/Chip'
@@ -41,15 +41,18 @@ import UtensilsIcon from '@mui/icons-material/Restaurant'
 import MatchesIcon from '@mui/icons-material/Store'
 import SettingsIcon from '@mui/icons-material/Settings'
 import DeleteIcon from '@mui/icons-material/Delete'
+import CardsIcon from '@mui/icons-material/Style'
+import NextIcon from '@mui/icons-material/NavigateNext'
+import CelebrationIcon from '@mui/icons-material/Celebration'
 // import PlaceIcon from '@mui/icons-material/Place'
 
-import { PopulatedParty, BusinessData, SwipeAction, Match, User } from '../../types'
+import { PopulatedParty, BusinessData, SwipeAction, Match } from '../../types'
 import { db } from '../../firebase'
 import { partyKeys } from '../../utils/queryKeys'
 import { PartiesService } from '../../services/parties'
 import { useUser, useUIContext } from '../../context'
 import { useDeleteParty } from '../../hooks'
-import { ListItemBusiness } from '../../common/components'
+import { ListItemBusiness, ListItemBusinessProps } from '../../common/components'
 import {
   IconButton,
   Avatar,
@@ -66,168 +69,113 @@ import LikeIcon from '../../common/icons/Like'
 import FavoriteIcon from '../../common/icons/Favorite'
 import { useGetPartyBusinesses, IndexedBusinessData } from './useGetPartyBusinesses'
 import { useToggleBusiness } from './useToggleBusiness'
+import { PartyInfo } from './PartyInfo'
 // import { categories } from '../../components/PartySettingsDrawer/Categories'
 
-type MembersProps = {
-  members: PopulatedParty['members']
-}
+// const ConfettiCanvas = styled('canvas')(({ theme }) => ({
+//   position: 'fixed',
+//   top: 0,
+//   left: 0,
+//   height: '100%',
+//   width: '100%',
+//   zIndex: theme.zIndex.modal + 1,
+//   pointerEvents: 'none',
+// }))
 
-const Members: React.FC<MembersProps> = ({ members }) => {
-  const user = useUser()
-  const ui = useUIContext()
+// const emojis = ['🥨', '🍞', '🥓', '🍔', '🍗', '🌭', '🍕', '🌮', '🧇', '🥩']
 
-  return (
-    <Stack
-      direction='row'
-      spacing={1}
-      pb={0.25}
-      sx={{
-        overflowX: 'auto',
-        /* Hide scrollbar for Chrome, Safari and Opera */
-        '::-webkit-scrollbar': {
-          display: 'none',
-        },
-        /* Hide scrollbar for IE, Edge and Firefox */
-        // '-ms-overflow-style': 'none' /* IE and Edge */,
-        // 'scrollbar-width': 'none' /* Firefox */,
-        msOverflowStyle: 'none' /* IE and Edge */,
-        scrollbarWidth: 'none' /* Firefox */,
-      }}
-    >
-      {members
-        .filter(member => user.uid !== member.uid)
-        // .reduce<User[]>((acc, curr) => acc.concat(new Array<User>(20).fill(curr)), [])
-        .map(member => (
-          <IconButton key={member.uid} sx={{ p: 0 }} onClick={() => ui.profile.open(member)}>
-            <Avatar
-              alt={member.name}
-              src={member.photoURL}
-              id={member.uid}
-              sx={theme => ({
-                '&::after': {
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  borderStyle: 'solid',
-                  borderWidth: 2,
-                  borderColor: theme.palette.primary.main,
-                  borderRadius: '50%',
-                  content: '""',
-                },
-              })}
-            />
-          </IconButton>
-        ))}
-    </Stack>
-  )
-}
+// const Confetti = () => {
+//   const canvasRef = React.useRef<HTMLCanvasElement>(null)
+//   const intervalID = React.useRef<NodeJS.Timer | number>()
 
-type SwipeButtonProps = IconButtonProps & {
-  Icon: React.FC
-  width?: number
-}
+//   React.useEffect(() => {
+//     if (canvasRef.current) {
+//       const jsConfetti = new JSConfetti({
+//         canvas: canvasRef.current,
+//       })
 
-const SwipeButton: React.FC<SwipeButtonProps> = ({
-  width = 40,
-  Icon,
-  sx = [],
-  style,
-  ...props
-}) => {
-  return (
-    <IconButton
-      sx={[
-        theme => ({
-          p: 0,
-          boxShadow: theme.shadows[3],
-          height: width * 0.8,
-          width: width * 0.8,
-          color: 'white',
-          [theme.breakpoints.up('md')]: {
-            height: width,
-            width: width,
-          },
-        }),
-        ...(Array.isArray(sx) ? sx : [sx]),
-      ]}
-      {...props}
-    >
-      <Icon />
-    </IconButton>
-  )
-}
+//       jsConfetti.addConfetti({ emojis })
+//       intervalID.current = setInterval(() => {
+//         jsConfetti.addConfetti({ emojis })
+//       }, 5000)
 
-const ConfettiCanvas = styled('canvas')(({ theme }) => ({
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  height: '100%',
-  width: '100%',
-  zIndex: theme.zIndex.modal + 1,
-  pointerEvents: 'none',
-}))
+//       return () => {
+//         clearInterval(intervalID.current as number)
+//       }
+//     }
+//   }, [])
 
-const emojis = ['🥨', '🍞', '🥓', '🍔', '🍗', '🌭', '🍕', '🌮', '🧇', '🥩']
-
-const Confetti = () => {
-  const canvasRef = React.useRef<HTMLCanvasElement>(null)
-  const intervalID = React.useRef<NodeJS.Timer | number>()
-
-  React.useEffect(() => {
-    if (canvasRef.current) {
-      const jsConfetti = new JSConfetti({
-        canvas: canvasRef.current,
-      })
-
-      jsConfetti.addConfetti({ emojis })
-      intervalID.current = setInterval(() => {
-        jsConfetti.addConfetti({ emojis })
-      }, 5000)
-
-      return () => {
-        clearInterval(intervalID.current as number)
-      }
-    }
-  }, [])
-
-  return <ConfettiCanvas ref={canvasRef} />
-}
+//   return <ConfettiCanvas ref={canvasRef} />
+// }
 
 type MatchDialogProps = DialogProps & {
   match?: Match
+  onClose: () => void
+  hasMoreMatches: boolean
+  setNextMatch: () => void
 }
 
 const MatchDialog: React.FC<MatchDialogProps> = props => {
-  const { match, open, ...dialogProps } = props
+  const { match, setNextMatch, hasMoreMatches, onClose, ...dialogProps } = props
 
   return (
     <Dialog
       {...dialogProps}
-      open={open}
+      onClose={onClose}
       PaperProps={{ sx: { width: '100%', maxWidth: 360, p: 2, m: 3 } }}
     >
-      <Confetti />
-      <Typography
-        variant='h5'
-        component='div'
-        color='primary'
-        py={1}
-        align='center'
-        fontWeight={800}
-        sx={{ textTransform: 'uppercase' }}
-      >
-        {match?.type === 'like' && 'Match'}
-        {match?.type === 'super-like' && 'Super Match'}
-      </Typography>
-      <CardMedia
-        component='img'
-        height={200}
-        sx={{ mb: 2 }}
-        image={match?.details.image_url}
-        alt={match?.details.name}
-      />
+      {/* {match?.type === 'super-like' && <Confetti />} */}
+      <Box mb={2} position='relative'>
+        <CardMedia
+          component='img'
+          height={250}
+          image={match?.details.image_url}
+          alt={match?.details.name}
+        />
+        <Box
+          position='absolute'
+          top={0}
+          left={0}
+          right={0}
+          bottom={0}
+          display='flex'
+          sx={theme => ({
+            background: alpha(theme.palette.primary.main, 0.5),
+          })}
+        >
+          <Box
+            m='auto'
+            display='flex'
+            flexDirection='column'
+            alignItems='center'
+            color={theme => theme.palette.getContrastText(theme.palette.primary.main)}
+          >
+            <Avatar
+              sx={theme => ({
+                width: 56,
+                height: 56,
+                bgcolor: 'transparent',
+                border: `2px solid ${theme.palette.getContrastText(theme.palette.primary.main)}`,
+              })}
+            >
+              <CelebrationIcon />
+            </Avatar>
+            <Typography variant='h5' component='div' fontWeight={900} align='center'>
+              Congratulations
+              <br /> It's a match!
+            </Typography>
+          </Box>
+          <OpenInNewLink
+            href={match?.details.url}
+            height={32}
+            width={32}
+            fontSize='body1.fontSize'
+            position='absolute'
+            top={8}
+            right={8}
+          />
+        </Box>
+      </Box>
       <Grid container>
         <Grid item xs={12}>
           <Box display='flex' alignItems='center' mb={{ xs: 0.5, sm: 1 }}>
@@ -270,41 +218,91 @@ const MatchDialog: React.FC<MatchDialogProps> = props => {
           </Box>
         </Grid>
       </Grid>
+      <Box py={1}>
+        <Button
+          variant='outlined'
+          fullWidth
+          sx={{ mt: 1 }}
+          startIcon={<NextIcon />}
+          onClick={() => setNextMatch()}
+          disabled={!hasMoreMatches}
+        >
+          Next match
+        </Button>
+        <Button fullWidth sx={{ mt: 1 }} startIcon={<CardsIcon />} onClick={() => onClose()}>
+          Keep swiping
+        </Button>
+      </Box>
     </Dialog>
   )
 }
 
-type MatchListItemProps = {
-  isLoading?: boolean
+type ActionButtonProps = Omit<IconButtonProps, 'size'> & {
+  icon: JSX.Element
+  size?: number
+  filled?: boolean
+  responsive?: boolean
+}
+
+const ActionButton: React.FC<ActionButtonProps> = ({
+  icon,
+  size = 32,
+  filled = false,
+  responsive = true,
+  sx = [],
+  ...props
+}) => {
+  return (
+    <IconButton
+      sx={[
+        theme => ({
+          height: size,
+          width: size,
+          color: filled ? 'common.black' : 'transparent',
+          p: 0,
+          boxShadow: theme.shadows[3],
+          ...(responsive && {
+            [theme.breakpoints.up('md')]: {
+              height: size * 1.25,
+              width: size * 1.25,
+            },
+          }),
+        }),
+        ...(Array.isArray(sx) ? sx : [sx]),
+      ]}
+      {...props}
+    >
+      {icon}
+    </IconButton>
+  )
+}
+
+type MatchListItemProps = ListItemBusinessProps & {
   match?: Match
 }
 
-const MatchListItem: React.FC<MatchListItemProps> = props => {
-  const { state, toggleFavorite } = useToggleBusiness(props.match?.details)
+const MatchListItem: React.FC<MatchListItemProps> = ({ match, ...props }) => {
+  const { state, toggleFavorite } = useToggleBusiness(match?.details)
 
   const isLoading = props.isLoading || state.isLoading
 
   return (
     <ListItemBusiness
-      type={props.match?.type}
+      type={match?.type}
       isLoading={isLoading}
-      details={props.match?.details}
+      details={match?.details}
       secondaryAction={
         !isLoading && (
-          <SwipeButton
-            Icon={FavoriteIcon}
+          <ActionButton
+            icon={<FavoriteIcon />}
+            size={24}
+            filled={state.isFavorite}
+            responsive={false}
             onClick={() => toggleFavorite()}
-            sx={{
-              height: '24px !important',
-              width: '24px !important',
-              mr: 2,
-              '& svg': {
-                color: state.isFavorite ? 'black' : 'white',
-              },
-            }}
           />
         )
       }
+      {...props}
     />
   )
 }
@@ -385,25 +383,32 @@ const Matches = React.forwardRef<HTMLDivElement, MatchesProps>(({ partyId, close
     return () => {
       unsubscribe()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyId, user.uid])
+
+  const setNextMatch = React.useCallback(() => {
+    const newMatchQueue = [...matchQueue]
+    const newMatch = newMatchQueue.shift()
+    setMatchQueue(newMatchQueue)
+
+    if (newMatch) {
+      setMatch(newMatch)
+    }
+  }, [matchQueue])
 
   React.useEffect(() => {
     if (!isOpen && !match && matchQueue.length > 0) {
-      const newMatchQueue = [...matchQueue]
-      const newMatch = newMatchQueue.shift()
-      setMatchQueue(newMatchQueue)
-
-      if (newMatch) {
-        setMatch(newMatch)
-      }
-
+      setNextMatch()
       setIsOpen(true)
     }
-  }, [isOpen, match, matchQueue])
+  }, [isOpen, match, matchQueue, setNextMatch])
 
   const handleClose = React.useCallback(() => {
+    if (matchQueue.length > 0) {
+      setMatchQueue([])
+    }
     setIsOpen(false)
-  }, [])
+  }, [matchQueue])
 
   const { isLoading, data } = matchesQuery
 
@@ -412,7 +417,7 @@ const Matches = React.forwardRef<HTMLDivElement, MatchesProps>(({ partyId, close
     matches: undefined[]
   }>(1).fill({
     date: undefined,
-    matches: Array(3).fill(undefined),
+    matches: Array(5).fill(undefined),
   })
 
   const matches = data ?? defaultData
@@ -426,8 +431,12 @@ const Matches = React.forwardRef<HTMLDivElement, MatchesProps>(({ partyId, close
       }}
     >
       <MatchDialog
-        open={isOpen && !!match}
         match={match!}
+        // match={matchesQuery.data ? matchesQuery.data[0].matches[0] : undefined}
+        setNextMatch={setNextMatch}
+        hasMoreMatches={matchQueue.length > 0}
+        open={isOpen && !!match}
+        // open={!!matchesQuery.data}
         onClose={handleClose}
         closeAfterTransition
         TransitionProps={{
@@ -436,7 +445,7 @@ const Matches = React.forwardRef<HTMLDivElement, MatchesProps>(({ partyId, close
           },
         }}
       />
-      <Box display='flex' justifyContent='space-between' alignItems='center' mb={2}>
+      <Box display='flex' justifyContent='space-between' alignItems='center' p={3} pb={1}>
         <Typography variant='h6'>Matches</Typography>
         <Hidden smUp>
           <IconButton onClick={closeMatches}>
@@ -444,23 +453,29 @@ const Matches = React.forwardRef<HTMLDivElement, MatchesProps>(({ partyId, close
           </IconButton>
         </Hidden>
       </Box>
-
       <Box ref={ref} sx={{ overflowY: isLoading ? 'hidden' : 'auto' }}>
         {isLoading || matches.length > 0 ? (
-          matches.map((group, index) => (
-            <Box key={index}>
-              {group.date && <DividerText text={group.date} />}
-              <List>
-                {group.matches.map((match, index) => (
-                  <MatchListItem
-                    key={match ? `${match?.details.id}-${index}` : index}
-                    isLoading={isLoading}
-                    match={match}
-                  />
-                ))}
-              </List>
-            </Box>
-          ))
+          <List subheader={<li />} sx={{ '& ul': { px: 1 } }}>
+            {matches.map((group, index) => (
+              <li key={index}>
+                <ul>
+                  {group.date && (
+                    <ListSubheader>
+                      <DividerText text={group.date} />
+                    </ListSubheader>
+                  )}
+                  {group.matches.map((match, index) => (
+                    <MatchListItem
+                      key={match ? `${match?.details.id}-${index}` : index}
+                      match={match}
+                      isLoading={isLoading}
+                      divider={!isLoading && index !== group.matches.length - 1}
+                    />
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </List>
         ) : (
           <NoData
             icon={<MatchesIcon fontSize='large' />}
@@ -502,21 +517,27 @@ const BusinessCard: React.FC<BusinessCardProps> = ({ business, drag = true, styl
         backgroundImage: `url(${business.image_url})`,
         backgroundRepeat: 'no-repeat',
         backgroundSize: 'cover',
+        backgroundPosition: 'center',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
       })}
     >
       <Box p={2}>
-        <OpenInNewLink
-          href={business.url}
-          ml='auto'
-          height={{ xs: 32, md: 40 }}
-          width={{ xs: 32, md: 40 }}
-          fontSize={{ xs: 'body1.fontSize', md: 'large' }}
-        />
+        <OpenInNewLink href={business.url} ml='auto' variant='h6' />
       </Box>
-      <Box p={1} sx={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}>
+      <Box
+        p={{ xs: 2, md: 3 }}
+        sx={{
+          background: `linear-gradient(
+            transparent 0%,
+            rgba(0,0,0,0.4) 25%,
+            rgba(0,0,0,0.6) 50%,
+            rgba(0,0,0,0.8) 75%
+          )`,
+          color: 'white',
+        }}
+      >
         <Grid container>
           <Grid item xs={12}>
             <Box display='flex' alignItems='center' mb={{ xs: 0.5, sm: 1 }}>
@@ -536,25 +557,23 @@ const BusinessCard: React.FC<BusinessCardProps> = ({ business, drag = true, styl
             </Box>
           </Grid>
           <Grid item xs={12}>
-            <Typography variant='body2' fontWeight={600}>
+            <Typography component='div' variant='body1' fontWeight={600}>
               {business.name}
             </Typography>
-            <Box display='flex' alignItems='center'>
-              <Typography variant='body2' display='inline' mr={1}>
-                {business.location.city}, {business.location.state || business.location.country}
-              </Typography>
-              <Typography
-                variant='caption'
-                color='primary'
-                ml='auto'
-                sx={{ textDecoration: 'underline' }}
-              >
-                {business.categories
-                  .slice(0, 2)
-                  .map(({ title }) => title)
-                  .join(', ')}
-              </Typography>
-            </Box>
+            <Typography component='div' variant='caption'>
+              {business.location.city}, {business.location.state || business.location.country}
+            </Typography>
+            <Typography
+              component='div'
+              variant='caption'
+              color='primary'
+              sx={{ textDecoration: 'underline' }}
+            >
+              {business.categories
+                .slice(0, 2)
+                .map(({ title }) => title)
+                .join(', ')}
+            </Typography>
           </Grid>
         </Grid>
       </Box>
@@ -573,42 +592,49 @@ const ActionButtons: React.FC<ActionButtonsProps> = React.memo(props => {
   const { state, toggleFavorite, toggleBlock } = useToggleBusiness(currentBusiness)
 
   return (
-    <Stack direction='row' spacing={2} justifyContent='center' alignItems='center' mt={2}>
-      <SwipeButton
-        Icon={BlockIcon}
+    <Stack
+      direction='row'
+      spacing={2}
+      justifyContent='center'
+      alignItems='center'
+      py={{ md: 2 }}
+      mt={2}
+    >
+      <ActionButton
+        icon={<BlockIcon />}
+        filled={state.isBlocked}
         onClick={() => toggleBlock()}
         disabled={isDisabled}
-        sx={{ color: state.isBlocked ? 'black' : 'white' }}
       />
-      <SwipeButton
-        Icon={DislikeIcon}
-        width={52}
+      <ActionButton
+        icon={<DislikeIcon />}
+        size={40}
         onClick={() => animateSwipe('dislike')}
         disabled={isDisabled}
       />
-      <SwipeButton
-        Icon={SuperLikeIcon}
-        width={65}
+      <ActionButton
+        icon={<SuperLikeIcon />}
+        size={48}
         onClick={() => animateSwipe('super-like')}
         disabled={isDisabled}
       />
-      <SwipeButton
-        Icon={LikeIcon}
-        width={52}
+      <ActionButton
+        icon={<LikeIcon />}
+        size={40}
         onClick={() => animateSwipe('like')}
         disabled={isDisabled}
       />
-      <SwipeButton
-        Icon={FavoriteIcon}
+      <ActionButton
+        icon={<FavoriteIcon />}
+        filled={state.isFavorite}
         onClick={() => toggleFavorite()}
         disabled={isDisabled}
-        sx={{ color: state.isFavorite ? 'black' : 'white' }}
       />
     </Stack>
   )
 })
 
-// On swipe we save user's swipe action (dislike/like/super-like) for the current business
+// On each swipe we save user's swipe action (dislike/like/super-like) for the current business
 // and update user's offset to the NEXT business (business's offset index + 1)
 const useSwipe = (party: PopulatedParty) => {
   return useMutation<
@@ -624,202 +650,6 @@ const useSwipe = (party: PopulatedParty) => {
   })
 }
 
-type PartyInfoProps = {
-  party: PopulatedParty
-  currentBusiness?: BusinessData
-}
-
-const containerStyle = {
-  width: '100%',
-  height: '100%',
-}
-
-const PartyInfo: React.FC<PartyInfoProps> = React.memo(({ party, currentBusiness }) => {
-  const theme = useTheme()
-  const [map, setMap] = React.useState<google.maps.Map | null>(null)
-  // const [marker, setMarker] = React.useState<google.maps.Marker | null>(null)
-
-  const center = React.useMemo(
-    () => ({
-      lat: party.location.latitude,
-      lng: party.location.longitude,
-    }),
-    [party.location.latitude, party.location.longitude]
-  )
-
-  const infoWindow = React.useMemo(() => {
-    return new google.maps.InfoWindow()
-  }, [])
-
-  // const marker = React.useMemo(() => {
-  //   return new google.maps.Marker({
-  //     map: map,
-  //     // position: {
-  //     //   lat: currentBusiness.coordinates.latitude,
-  //     //   lng: currentBusiness.coordinates.longitude,
-  //     // },
-  //     icon: {
-  //       path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-  //       fillColor: theme.palette.primary.main,
-  //       fillOpacity: 0.8,
-  //       strokeColor: theme.palette.primary.main,
-  //       scale: 1.5,
-  //     },
-  //   })
-  // }, [])
-
-  const onLoadMap = React.useCallback((map: google.maps.Map) => {
-    // const circle = new window.google.maps.Circle({
-    //   strokeColor: theme.palette.primary.main,
-    //   strokeOpacity: 0.8,
-    //   strokeWeight: 2,
-    //   fillColor: theme.palette.primary.main,
-    //   fillOpacity: 0.15,
-    //   clickable: false,
-    //   draggable: false,
-    //   editable: false,
-    //   visible: true,
-    //   zIndex: 1,
-    // })
-
-    // circle.setRadius(party.params.radius * 1609.34)
-    // circle.setCenter(center)
-
-    // const bounds = circle.getBounds()
-    // if (bounds) {
-    //   map.fitBounds(bounds, 0)
-    //   setMap(map)
-    // }
-
-    // setMarker(
-    //   new google.maps.Marker({
-    //     map: map,
-    //     icon: {
-    //       path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-    //       fillColor: theme.palette.primary.main,
-    //       fillOpacity: 0.8,
-    //       strokeColor: theme.palette.primary.main,
-    //       scale: 1.5,
-    //     },
-    //   })
-    // )
-
-    setMap(map)
-  }, [])
-
-  const onUnmount = React.useCallback((map: google.maps.Map) => {
-    setMap(null)
-  }, [])
-
-  // React.useEffect(() => {
-  //   if (map) {
-
-  //   }
-  // }, [map, party])
-
-  // React.useEffect(() => {
-  //   if (map && marker && currentBusiness) {
-  //     const listener = google.maps.event.addListener(marker, 'click', () => {
-  //       infoWindow.setContent(currentBusiness.name)
-  //       infoWindow.open(map, marker)
-  //     })
-
-  //     marker.setPosition({
-  //       lat: currentBusiness.coordinates.latitude,
-  //       lng: currentBusiness.coordinates.longitude,
-  //     })
-
-  //     return () => {
-  //       google.maps.event.removeListener(listener)
-  //       marker.setPosition(null)
-  //     }
-  //   }
-  // }, [map, marker, currentBusiness])
-
-  const markerRef = React.useRef<Marker | null>(null)
-
-  return (
-    <Stack flex={1} spacing={2}>
-      <div>
-        <Members members={party.members} />
-      </div>
-      <div>
-        <Box display='flex' alignItems='center'>
-          <Typography>{party.location.description}</Typography>
-          <span style={{ marginLeft: 8, marginRight: 8 }}> &#x2022; </span>
-          <Typography color='primary' fontWeight={600}>
-            {'$'.repeat(party.params.price)}
-          </Typography>
-        </Box>
-      </div>
-      <div style={{ flex: 1, display: 'flex' }}>
-        <GoogleMap
-          mapContainerStyle={containerStyle}
-          center={center}
-          zoom={10}
-          onLoad={onLoadMap}
-          onUnmount={onUnmount}
-          options={{
-            mapTypeControl: false,
-            scaleControl: false,
-            streetViewControl: false,
-            rotateControl: false,
-            zoomControl: false,
-            fullscreenControl: false,
-          }}
-        >
-          <Circle
-            center={center}
-            radius={party.params.radius * 1609.34}
-            options={{
-              strokeColor: theme.palette.primary.main,
-              strokeOpacity: 0.8,
-              strokeWeight: 2,
-              fillColor: theme.palette.primary.main,
-              fillOpacity: 0.15,
-              clickable: false,
-              draggable: false,
-              editable: false,
-              visible: true,
-              zIndex: 1,
-            }}
-          />
-          <Marker
-            position={center}
-            clickable={false}
-            icon={{
-              path: google.maps.SymbolPath.CIRCLE,
-              fillColor: theme.palette.primary.main,
-              fillOpacity: 1,
-              strokeColor: theme.palette.primary.dark,
-              scale: 2.5,
-            }}
-          />
-          {currentBusiness && (
-            <Marker
-              ref={markerRef}
-              position={{
-                lat: currentBusiness.coordinates.latitude,
-                lng: currentBusiness.coordinates.longitude,
-              }}
-              icon={{
-                path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-                fillColor: theme.palette.primary.main,
-                fillOpacity: 0.8,
-                strokeColor: theme.palette.primary.main,
-                scale: 1.5,
-              }}
-              onClick={() => {
-                infoWindow.setContent(currentBusiness.name)
-                infoWindow.open(map, markerRef.current?.marker)
-              }}
-            />
-          )}
-        </GoogleMap>
-      </div>
-    </Stack>
-  )
-})
 type InfiniteCardsProps = {
   party: PopulatedParty
   isInfoOpen: boolean
@@ -1159,7 +989,6 @@ export const Party = () => {
             PaperProps={{
               elevation: 1,
               sx: {
-                p: { xs: 4, md: 3 },
                 overflowY: 'hidden',
                 position: {
                   xs: 'fixed',

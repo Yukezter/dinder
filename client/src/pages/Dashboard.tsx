@@ -1,6 +1,6 @@
 import React from 'react'
 import { Timestamp } from 'firebase/firestore'
-import { useIsMutating } from 'react-query'
+// import { useIsMutating } from 'react-query'
 import { DateTime } from 'luxon'
 import { useTable, useSortBy, Column, CellProps } from 'react-table'
 // import {
@@ -17,7 +17,6 @@ import { Theme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import Box from '@mui/material/Box'
 import Hidden from '@mui/material/Hidden'
-
 import Grid from '@mui/material/Grid'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
@@ -38,8 +37,8 @@ import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import TableSortLabel from '@mui/material/TableSortLabel'
 // import Fade from '@mui/material/Fade'
-import Tabs from '@mui/material/Tabs'
-import Tab from '@mui/material/Tab'
+// import Tabs from '@mui/material/Tabs'
+// import Tab from '@mui/material/Tab'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Chip from '@mui/material/Chip'
@@ -57,7 +56,7 @@ import { PopulatedParty, Business } from '../types'
 import { useUser, useParties, useUIContext } from '../context'
 import { useGetBusinesses, useDeleteParty, useDeleteBusiness } from '../hooks'
 import { ListItemBusiness } from '../common/components'
-import { Link, Avatar, AvatarGroup, PopperMenu, NoData } from '../common/components'
+import { Link, Avatar, UserAvatarGroup, PopperMenu, NoData } from '../common/components'
 
 type CardPopperMenuProps = {
   party?: PopulatedParty
@@ -117,7 +116,7 @@ const CreatePartyCard: React.FC = () => {
       <CardActionArea
         onClick={() => ui.party.open()}
         sx={{
-          height: { xs: 150, sm: 180 },
+          height: { xs: 136, sm: 180 },
           borderRadius: 'inherit',
           display: 'flex',
         }}
@@ -168,7 +167,8 @@ const PartyCard: React.FC<PartyCardProps> = props => {
       sx={{
         mx: 'auto',
         maxWidth: CARD_MAX_WIDTH,
-        height: '100%',
+        // height: '100%',
+        height: { xs: 136, sm: 180 },
         borderRadius: 8,
         display: 'flex',
         flexDirection: 'column',
@@ -198,7 +198,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
             !party ? (
               <Skeleton width={50} />
             ) : (
-              <Typography variant='caption' noWrap>
+              <Typography variant='caption' component='div' noWrap>
                 @{admin?.username}
               </Typography>
             )
@@ -211,7 +211,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
           }}
         />
         <CardContent sx={{ flex: 1, display: 'flex' }}>
-          <AvatarGroup
+          <UserAvatarGroup
             total={party?.members.length}
             users={party?.members}
             sx={theme => ({
@@ -249,7 +249,7 @@ const TableToolbar: React.FC<PartiesTableProps> = ({ isLoading, data }) => {
       variant='dense'
       disableGutters
       sx={{
-        p: 2.5,
+        p: 3,
         pb: 0,
       }}
     >
@@ -284,8 +284,8 @@ const TableToolbar: React.FC<PartiesTableProps> = ({ isLoading, data }) => {
 const PartiesTable: React.FC<PartiesTableProps> = props => {
   const { isLoading, data } = props
 
-  const matchesSm = useMediaQuery<Theme>(theme => theme.breakpoints.up(480))
-  const matchesMd = useMediaQuery<Theme>(theme => theme.breakpoints.up(730))
+  const isSmUp = useMediaQuery<Theme>(theme => theme.breakpoints.up(480))
+  const isMdUp = useMediaQuery<Theme>(theme => theme.breakpoints.up(730))
 
   const columns = React.useMemo(() => {
     let cols: Column<PopulatedParty>[] = [
@@ -295,7 +295,7 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
         Cell: ({ value, row }) => {
           return (
             <Box display='flex' alignItems='center'>
-              <AvatarGroup
+              <UserAvatarGroup
                 users={row.original.members}
                 sx={{
                   '& .MuiAvatarGroup-avatar': {
@@ -363,7 +363,7 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
 
           const relativeTime = React.useMemo(() => {
             return now.minus(new Date().getTime() - value).toRelative()
-          }, [value, now])
+          }, [now, value])
 
           if (row.original.active) {
             return 'Now'
@@ -395,7 +395,16 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
     return isLoading || data.length === 0
   }, [isLoading, data])
 
-  const reactTable = useTable(
+  const {
+    getTableProps,
+    headerGroups,
+    getTableBodyProps,
+    prepareRow,
+    rows,
+    disableSortBy,
+    visibleColumns,
+    setHiddenColumns,
+  } = useTable(
     {
       columns,
       data,
@@ -403,7 +412,7 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
       disableSortRemove: true,
       disableSortBy: isDisabled,
       initialState: {
-        hiddenColumns: matchesMd ? [] : matchesSm ? ['active'] : ['active', 'lastActive'],
+        hiddenColumns: isMdUp ? [] : isSmUp ? ['active'] : ['active', 'lastActive'],
         sortBy: [
           {
             id: 'lastActive',
@@ -416,8 +425,8 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
   )
 
   React.useEffect(() => {
-    reactTable.setHiddenColumns(matchesMd ? [] : matchesSm ? ['active'] : ['active', 'lastActive'])
-  }, [matchesMd, matchesSm, reactTable.setHiddenColumns])
+    setHiddenColumns(isMdUp ? [] : isSmUp ? ['active'] : ['active', 'lastActive'])
+  }, [isMdUp, isSmUp, setHiddenColumns])
 
   return (
     <Paper
@@ -433,31 +442,31 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
         sx={{
           overflowX: 'hidden',
           overflowY: isLoading ? 'hidden' : 'auto',
-          px: 2.5,
+          px: 3,
           mt: 1,
         }}
       >
-        <Table aria-labelledby='tableTitle' stickyHeader {...reactTable.getTableProps()}>
+        <Table aria-labelledby='tableTitle' stickyHeader {...getTableProps()}>
           <TableHead>
-            {reactTable.headerGroups.map(headerGroup => (
+            {headerGroups.map(headerGroup => (
               <TableRow {...headerGroup.getHeaderGroupProps()}>
                 {headerGroup.headers.map(column => (
                   <TableCell
                     {...column.getHeaderProps()}
-                    sx={{ whiteSpace: 'nowrap' }}
+                    sx={{ whiteSpace: 'nowrap', bgcolor: 'transparent' }}
                     align={column.id === 'name' ? 'left' : 'right'}
                     sortDirection={column.isSorted ? (column.isSortedDesc ? 'desc' : 'asc') : false}
                   >
                     {column.id !== 'menu' && (
                       <TableSortLabel
                         {...column.getSortByToggleProps()}
-                        active={reactTable.disableSortBy ? false : column.isSorted}
+                        active={disableSortBy ? false : column.isSorted}
                         direction={column.isSortedDesc ? 'desc' : 'asc'}
-                        disabled={reactTable.disableSortBy}
-                        sx={{ color: reactTable.disableSortBy ? 'text.disabled' : '' }}
+                        disabled={disableSortBy}
+                        sx={{ color: disableSortBy ? 'text.disabled' : '' }}
                       >
                         {column.render('Header')}
-                        {!reactTable.disableSortBy && column.isSorted ? (
+                        {!disableSortBy && column.isSorted ? (
                           <Box component='span' sx={visuallyHidden}>
                             {column.isSortedDesc ? 'sorted descending' : 'sorted ascending'}
                           </Box>
@@ -469,9 +478,9 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
               </TableRow>
             ))}
           </TableHead>
-          <TableBody {...reactTable.getTableBodyProps()} style={{ minHeight: 67 * 4 }}>
-            {reactTable.rows.map(row => {
-              reactTable.prepareRow(row)
+          <TableBody {...getTableBodyProps()}>
+            {rows.map(row => {
+              prepareRow(row)
               return (
                 <TableRow {...row.getRowProps()}>
                   {row.cells.map(cell => {
@@ -489,6 +498,23 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
                 </TableRow>
               )
             })}
+            {rows.length > 0 && rows.length < 4 && (
+              <TableRow
+                sx={theme => ({
+                  [theme.breakpoints.down('lg')]: {
+                    height: (4 - rows.length) * 67,
+                  },
+                })}
+              >
+                <TableCell
+                  colSpan={visibleColumns.length}
+                  sx={{
+                    p: 0,
+                    borderBottom: 'none',
+                  }}
+                />
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -559,11 +585,12 @@ const BusinessList = ({ data, isLoading }: BusinessListProps) => {
   }
 
   return (
-    <List sx={{ overflow: isLoading ? 'hidden' : 'auto' }}>
+    <List sx={{ minHeight: 250 }}>
       {data.map((business, index) => (
         <ListItemBusiness
           key={business?.details.id || index}
           details={business?.details}
+          divider={!isLoading && index !== data.length - 1}
           secondaryAction={
             !!business && (
               <IconButton onClick={handleDeleteBusiness(business)}>
@@ -582,8 +609,7 @@ const Businesses = () => {
     favorites: Business[]
     blocked: Business[]
   }>({
-    select(data) {
-      // data.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis())
+    select: data => {
       return {
         favorites: data.filter(business => business.type === 'favorite'),
         blocked: data.filter(business => business.type === 'block'),
@@ -598,8 +624,8 @@ const Businesses = () => {
   const data = React.useMemo(() => {
     if (!businessesQuery.data) {
       return {
-        favorites: Array.from(Array<undefined>(4)),
-        blocked: Array.from(Array<undefined>(4)),
+        favorites: Array.from(Array<undefined>(3)),
+        blocked: Array.from(Array<undefined>(3)),
       }
     }
 
@@ -617,7 +643,6 @@ const Businesses = () => {
   return (
     <Paper
       sx={{
-        p: 3,
         minHeight: 0,
         flex: 1,
         display: 'flex',
@@ -632,18 +657,27 @@ const Businesses = () => {
           value={tab}
           exclusive
           onChange={handleTabChange}
-          sx={{ alignSelf: 'center', mb: 2 }}
+          sx={{ alignSelf: 'center', mb: 2, p: 3, pb: 0 }}
         >
           <ToggleButton value={0}>Favorites</ToggleButton>
           <ToggleButton value={1}>Blocked</ToggleButton>
         </ToggleButtonGroup>
       </Stack>
-      <TabPanel value={tab} index={0}>
-        <BusinessList data={data.favorites} isLoading={isLoading} />
-      </TabPanel>
-      <TabPanel value={tab} index={1}>
-        <BusinessList data={data.blocked} isLoading={isLoading} />
-      </TabPanel>
+      <Box
+        flex={1}
+        px={1}
+        display='flex'
+        flexDirection='column'
+        minWidth={0}
+        sx={{ overflowY: isLoading ? 'hidden' : 'auto' }}
+      >
+        <TabPanel value={tab} index={0}>
+          <BusinessList data={data.favorites} isLoading={isLoading} />
+        </TabPanel>
+        <TabPanel value={tab} index={1}>
+          <BusinessList data={data.blocked} isLoading={isLoading} />
+        </TabPanel>
+      </Box>
     </Paper>
   )
 }
@@ -675,8 +709,6 @@ export const Dashboard = () => {
 
     return { recent: all.slice(0, 3), all }
   }, [partiesQuery.isLoading, partiesQuery.data])
-
-  console.log(partiesQuery)
 
   return (
     <Box display='flex' flexDirection='column' flex={1} minHeight={{ lg: 0 }} mb={{ xs: 2, lg: 0 }}>

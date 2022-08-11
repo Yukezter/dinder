@@ -4,21 +4,14 @@ import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 
 export default ({ text }: { text: string }) => (
-  <Box display='flex' mr={2} sx={{ alignItems: 'center' }}>
-    <div style={{ width: '100%' }}>
+  <Box display='flex' alignItems='center'>
+    <div style={{ flex: 1 }}>
       <Divider />
     </div>
-    <Typography
-      color='textSecondary'
-      noWrap
-      display='block'
-      overflow='initial'
-      textOverflow='initial'
-      style={{ margin: '0 8px' }}
-    >
+    <Typography color='textSecondary' noWrap display='block' mx={1}>
       {text}
     </Typography>
-    <div style={{ width: '100%' }}>
+    <div style={{ flex: 1 }}>
       <Divider />
     </div>
   </Box>

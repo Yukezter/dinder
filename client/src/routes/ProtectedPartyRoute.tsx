@@ -13,21 +13,20 @@ const ProtectedPartyRoute = () => {
 
   // Inside PartiesContext, we manually set the query data for each individual party.
   // So, if we wait until all parties are done loading before enabling this query,
-  // we can simply use the query data associated with this party's query key.
+  // we can simply use the cached query data associated with this party's query key.
   // This query function will only run if the party doesn't exist, or the current user
   // isn't a member of this party.
   const isFetchingParties = useIsFetching(partyKeys.details(), { exact: true })
   const partyQuery = useQuery<PopulatedParty | undefined, FirebaseError>(
     partyKeys.detail(partyId),
     () => {
-      console.log('ProtectedPartyRoute: fetching party!')
       return PartiesService.getParty(partyId)
     },
     {
       refetchOnMount: true,
       enabled: isFetchingParties === 0,
       retry: (failureCount, error) => {
-        // Don't retry if this user isn't a member
+        // Don't retry failed query if this user isn't a member
         if (error.code === 'permission-denied') {
           return false
         }
@@ -42,7 +41,7 @@ const ProtectedPartyRoute = () => {
   }
 
   if (isFetchingParties > 0 || partyQuery.isLoading) {
-    return <CircularProgress />
+    return <CircularProgress sx={{ m: 'auto' }} />
   }
 
   if (partyQuery.error?.code === 'permission-denied') {
