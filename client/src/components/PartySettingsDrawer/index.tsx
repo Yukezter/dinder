@@ -46,7 +46,7 @@ const PartyDrawerContent: React.FC<PartyDrawerContentProps> = props => {
       },
       ...pick(initialState, ['id', 'name', 'location', 'params']),
     }),
-    [initialState]
+    [initialState, user.uid]
   )
 
   const { register, control, handleSubmit } = useForm<FormInputs>({

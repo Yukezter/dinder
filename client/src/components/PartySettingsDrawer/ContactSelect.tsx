@@ -126,7 +126,6 @@ const MembersSelect = React.forwardRef<HTMLInputElement, MembersSelectProps>((pr
             setInputValue(newInputValue)
 
             if (filter === 'none') {
-              console.log('wowowowow')
               searchBoxApi.refine(newInputValue)
             }
           }

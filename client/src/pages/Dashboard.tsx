@@ -167,7 +167,6 @@ const PartyCard: React.FC<PartyCardProps> = props => {
       sx={{
         mx: 'auto',
         maxWidth: CARD_MAX_WIDTH,
-        // height: '100%',
         height: { xs: 136, sm: 180 },
         borderRadius: 8,
         display: 'flex',
@@ -188,7 +187,7 @@ const PartyCard: React.FC<PartyCardProps> = props => {
             !party ? (
               <Skeleton width={80} />
             ) : (
-              <Link to={`/party/${party.id}`} underline='hover'>
+              <Link to={`/party/${party.id}`} underline='hover' noWrap display='block'>
                 {party.name}
               </Link>
             )
@@ -295,21 +294,19 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
         Cell: ({ value, row }) => {
           return (
             <Box display='flex' alignItems='center'>
-              <UserAvatarGroup
-                users={row.original.members}
-                sx={{
-                  '& .MuiAvatarGroup-avatar': {
-                    height: 28,
-                    width: 28,
-                    fontSize: 'inherit',
-                  },
-                }}
-              />
-              <Link
-                to={`/party/${row.original.id}`}
-                underline='hover'
-                state={{ party: row.original }}
-              >
+              <Hidden lgDown>
+                <UserAvatarGroup
+                  users={row.original.members}
+                  sx={{
+                    '& .MuiAvatarGroup-avatar': {
+                      height: 28,
+                      width: 28,
+                      fontSize: 'inherit',
+                    },
+                  }}
+                />
+              </Hidden>
+              <Link to={`/party/${row.original.id}`} underline='hover' noWrap display='block'>
                 {value}
               </Link>
             </Box>
@@ -439,12 +436,17 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
     >
       <TableToolbar isLoading={isLoading} data={data} />
       <TableContainer
-        sx={{
+        sx={theme => ({
           overflowX: 'hidden',
           overflowY: isLoading ? 'hidden' : 'auto',
           px: 3,
           mt: 1,
-        }}
+          [theme.breakpoints.down('sm')]: {
+            '& tr > th, & tr > td:last-of-type': {
+              pl: 0,
+            },
+          },
+        })}
       >
         <Table aria-labelledby='tableTitle' stickyHeader {...getTableProps()}>
           <TableHead>
@@ -488,8 +490,17 @@ const PartiesTable: React.FC<PartiesTableProps> = props => {
                       <TableCell
                         {...cell.getCellProps()}
                         {...(cell.column.id === 'name'
-                          ? { component: 'th', scope: 'row' }
+                          ? {
+                              component: 'th',
+                              scope: 'row',
+                            }
                           : { align: 'right' })}
+                        sx={{
+                          whiteSpace: 'nowrap',
+                          ...(cell.column.id === 'name' && {
+                            maxWidth: { xs: 150, sm: 280, md: 140, lg: 280 },
+                          }),
+                        }}
                       >
                         {cell.render('Cell')}
                       </TableCell>

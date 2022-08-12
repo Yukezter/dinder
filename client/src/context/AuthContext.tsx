@@ -12,6 +12,7 @@ import {
   push,
 } from 'firebase/database'
 import { doc, setDoc } from 'firebase/firestore'
+import { useQueryClient } from 'react-query'
 import { auth, firestore, db } from '../firebase'
 
 export type AuthUser = User
@@ -28,6 +29,7 @@ const AuthContext = React.createContext<IAuthContext>({} as IAuthContext)
 export const useAuth = () => React.useContext(AuthContext)
 
 export const AuthProvider: React.FC = ({ children }) => {
+  const queryClient = useQueryClient()
   const [state, setState] = React.useState<IAuthContext>()
 
   const hasCustomClaims = React.useRef<boolean>(false)
@@ -72,14 +74,17 @@ export const AuthProvider: React.FC = ({ children }) => {
           onValue(metadataRef, callback)
         })
       } else {
+        queryClient.removeQueries()
         setState({})
       }
     })
 
-    return unsubscribe
-  }, [])
+    return () => {
+      unsubscribe()
+    }
+  }, [queryClient])
 
-  // Manage the current user's online presence
+  // Manage the authenticated user's online presence
   React.useEffect(() => {
     if (!state?.user) {
       return

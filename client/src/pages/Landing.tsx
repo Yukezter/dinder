@@ -15,7 +15,7 @@ export const Landing = () => {
       if (charIndex.current <= allText.length) {
         setText(allText.slice(0, charIndex.current))
         ++charIndex.current
-        const delta = 120 - Math.random() * 100
+        const delta = 60 - Math.random() * 40
         setTimeout(() => {
           tick()
         }, delta)

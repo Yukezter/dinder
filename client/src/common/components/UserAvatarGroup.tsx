@@ -15,6 +15,7 @@ export interface UserAvatarGroupProps extends AvatarGroupProps {
 export const UserAvatarGroup: React.FC<UserAvatarGroupProps> = ({
   disablePopover = false,
   users,
+  max = 3,
   sx = [],
   ...props
 }) => {
@@ -35,7 +36,8 @@ export const UserAvatarGroup: React.FC<UserAvatarGroupProps> = ({
     <>
       <AvatarGroup
         spacing={6}
-        max={3}
+        max={max}
+        total={users?.length}
         sx={[
           {
             mr: 1,
@@ -52,8 +54,8 @@ export const UserAvatarGroup: React.FC<UserAvatarGroupProps> = ({
         {...props}
       >
         {!users
-          ? Array.from(Array(3)).map((_, index) => <UserAvatar key={index} />)
-          : users.map(({ uid, photoURL }) => <UserAvatar key={uid} src={photoURL} />)}
+          ? Array.from(Array(max)).map((_, index) => <UserAvatar key={index} />)
+          : users.slice(0, max).map(({ uid, photoURL }) => <UserAvatar key={uid} src={photoURL} />)}
       </AvatarGroup>
       {hasPopover && (
         <Popover
