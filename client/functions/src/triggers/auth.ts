@@ -1,7 +1,6 @@
 import * as functions from 'firebase-functions'
 import * as admin from 'firebase-admin'
 
-// import * as fb from '../fb'
 import * as refs from '../refs'
 import { updateCustomUserClaims } from '../helpers/auth'
 import algoliaService from '../services/algolia'

@@ -6,7 +6,7 @@ const firebase_tools = require('firebase-tools')
 import { Party, Members, Offsets } from '../types'
 import * as refs from '../refs'
 import * as validators from '../validators'
-import yelpService from '../services/Yelp'
+import yelpService from '../services/yelp'
 import { isEqual } from '../utils/utils'
 
 /* CREATE PARTY */
@@ -39,12 +39,13 @@ export const updateParty = functions
         throw new functions.https.HttpsError('unauthenticated', 'Access denied')
       }
 
-      // Filter out invalid party members
       const membersQuery = refs.firestore.users.where(
         admin.firestore.FieldPath.documentId(),
         'in',
         data.members
       )
+
+      // Filter out invalid party members
       const membersSnapshot = await tx.get(membersQuery)
       const membersDocs = membersSnapshot.docs.filter(doc => doc.exists)
       data.members = membersDocs.map(doc => doc.id)

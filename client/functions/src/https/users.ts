@@ -103,7 +103,7 @@ export const deleteContact = functions.https.onCall(
   }
 )
 
-/* BLOCK CONTACT */
+/* BLOCK USER */
 
 export const blockUser = functions.https.onCall(async (data: { id: string }, context) => {
   if (!context.auth || context.auth.token.accessLevel !== 1) {
@@ -128,6 +128,7 @@ export const blockUser = functions.https.onCall(async (data: { id: string }, con
       context.auth!.uid,
       user.uid,
     ])
+
     const partiesSnapshot = await tx.get(partiesQuery)
     partiesSnapshot.forEach(partyDoc => {
       const party = partyDoc.data()
